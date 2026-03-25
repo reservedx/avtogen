@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from app.config import settings
 from app.domain.enums import QualityOverallStatus
@@ -101,6 +101,17 @@ class QualityGateService:
             )
 
         lowered = markdown_content.lower()
+        if settings.default_medical_disclaimer.lower() not in lowered:
+            warnings.append(
+                {
+                    "code": "missing_medical_disclaimer",
+                    "message": "Medical disclaimer is missing from the article body.",
+                    "severity": "warning",
+                }
+            )
+            quality_score -= 8
+            risk_score += 8
+
         for phrase in self.dangerous_phrases:
             if phrase in lowered:
                 blockers.append(
@@ -213,8 +224,12 @@ class QualityGateService:
             actions.append("Resolve blockers before publishing")
         if any(item["code"] == "source_coverage_partial" for item in warnings):
             actions.append("Add visible citations or source-backed references")
+        if any(item["code"] == "missing_medical_disclaimer" for item in warnings):
+            actions.append("Insert the required medical disclaimer into the article body")
         if risk_score > settings.max_risk_score_for_auto_publish:
             actions.append("Require manual approval before publishing")
         if any(item["code"] == "brief_section_gap" for item in warnings):
             actions.append("Regenerate weak or missing sections from the brief")
         return actions
+
+

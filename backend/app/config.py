@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     max_risk_score_for_auto_publish: float = Field(default=20, alias="MAX_RISK_SCORE_FOR_AUTO_PUBLISH")
     required_source_count: int = Field(default=2, alias="REQUIRED_SOURCE_COUNT")
     similarity_threshold: float = Field(default=0.86, alias="SIMILARITY_THRESHOLD")
+    default_medical_disclaimer: str = Field(
+        default="Важно: Информация в статье не заменяет консультацию специалиста. Обратитесь к врачу при любых тревожных симптомах.",
+        alias="DEFAULT_MEDICAL_DISCLAIMER",
+    )
     youtube_api_key: str = Field(default="changeme", alias="YOUTUBE_API_KEY")
     youtube_max_results: int = Field(default=5, alias="YOUTUBE_MAX_RESULTS")
     youtube_region_code: str | None = Field(default=None, alias="YOUTUBE_REGION_CODE")
@@ -70,3 +74,4 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+

@@ -1,6 +1,7 @@
-import markdown
+﻿import markdown
 from slugify import slugify
 
+from app.config import settings
 from app.schemas.generation import DraftGenerationResult
 
 
@@ -10,6 +11,7 @@ class DraftGenerator:
         body = (
             f"# {title}\n\n"
             "This article provides general information and should be reviewed by a qualified editor before publication.\n\n"
+            f"> {settings.default_medical_disclaimer}\n\n"
             "## What is it?\n"
             "It is a symptom-focused topic that should be understood in context rather than self-diagnosed.\n\n"
             "## What are the main symptoms?\n"
@@ -64,3 +66,5 @@ class DraftGenerator:
 
     def render_html(self, markdown_content: str) -> str:
         return markdown.markdown(markdown_content, extensions=["tables", "fenced_code", "toc"])
+
+

@@ -1,4 +1,4 @@
-# Women Health Content Platform
+﻿# Women Health Content Platform
 
 Production-oriented MVP scaffold for an AI-assisted article generation and publishing system focused on women's health. The design assumes YMYL constraints, mandatory quality gates, article versioning, and manual review for risky content.
 
@@ -190,7 +190,7 @@ This will create a demo cluster, topic, sources, research notes, brief, draft, i
 
 ## Render Deployment
 
-The repo now includes a root [render.yaml](/C:/Users/мур7евг9/Desktop/avtogen/render.yaml) blueprint for a simple online prototype deployment:
+The repo now includes a root [render.yaml](/C:/Users/РјСѓСЂ7РµРІРі9/Desktop/avtogen/render.yaml) blueprint for a simple online prototype deployment:
 
 - `avtogen-backend` as a Docker web service
 - `avtogen-frontend` as a Node.js web service
@@ -244,6 +244,10 @@ When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` w
 poetry run pytest
 ```
 
+## Timeweb Cloud
+
+For a production-friendly Timeweb setup, use separate frontend, backend, and PostgreSQL services, with WordPress kept as the publishing target. See [TIMEWEB.md](TIMEWEB.md).
+
 ## Roadmap
 
 1. Persist generated image assets to S3-compatible storage and expose signed/public URLs instead of local file paths.
@@ -251,3 +255,4 @@ poetry run pytest
 3. Add richer editor review UI with source explorer and version diffing.
 4. Add observability dashboards for `task_runs`, pipeline tracing, and publishing retries.
 5. Expand source providers and stricter medical safety validation before auto-publish.
+

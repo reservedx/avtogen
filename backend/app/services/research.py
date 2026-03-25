@@ -1,4 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
+
+from app.config import settings
 
 
 class ResearchPackBuilder:
@@ -65,10 +67,12 @@ class ResearchPackBuilder:
         return [entity for entity in known_entities if entity in seed_text] or ["symptoms", "red flags"]
 
     def _recommended_disclaimers(self, keyword: str, sources: list[dict]) -> list[str]:
-        disclaimers = ["This article is informational and does not replace medical consultation."]
+        disclaimers = [settings.default_medical_disclaimer]
         lower_keyword = keyword.lower()
         if any(term in lower_keyword for term in ["pain", "blood", "pregnan", "fever"]):
             disclaimers.append("Urgent symptoms or pregnancy-related concerns should be reviewed by a clinician.")
         if any(source.get("source_type") == "youtube" for source in sources):
             disclaimers.append("Video transcripts are used as supporting context and require confirmation with higher-trust references.")
         return disclaimers
+
+

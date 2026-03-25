@@ -1,3 +1,4 @@
+﻿from app.config import settings
 from app.schemas.generation import BriefGenerationResult
 
 
@@ -38,7 +39,7 @@ class BriefGenerator:
                 "sources",
             ],
             prohibited_sections=["medication dosing", "guaranteed outcomes"],
-            medical_safety_notes=research_pack["recommended_disclaimers"],
+            medical_safety_notes=list(dict.fromkeys([*research_pack["recommended_disclaimers"], settings.default_medical_disclaimer])),
             faq_questions=[
                 "How often is considered normal?",
                 "Can the symptom persist after treatment?",
@@ -49,3 +50,5 @@ class BriefGenerator:
             meta_guidance={"include_primary_keyword": True},
             image_guidance={"count": 3, "style": "neutral medical editorial illustration"},
         ).model_dump()
+
+
