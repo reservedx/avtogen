@@ -548,8 +548,12 @@ def get_article_workspace(article_id: UUID, db: Session = Depends(get_db)) -> Ar
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+    topic = db.get(ContentTopic, article.topic_id)
     versions = db.query(ArticleVersion).filter(ArticleVersion.article_id == article_id).order_by(ArticleVersion.version.desc()).all()
     images = db.query(Image).filter(Image.article_id == article_id).order_by(Image.created_at.asc()).all()
+    sources = db.query(Source).filter(Source.topic_id == article.topic_id).order_by(Source.created_at.asc()).all()
+    research_notes = db.query(ResearchNote).filter(ResearchNote.topic_id == article.topic_id).order_by(ResearchNote.created_at.asc()).all()
+    brief = db.get(Brief, article.brief_id)
     current_version = db.get(ArticleVersion, article.current_version_id) if article.current_version_id else None
     latest_quality_report = None
     if article.current_version_id:
@@ -564,6 +568,10 @@ def get_article_workspace(article_id: UUID, db: Session = Depends(get_db)) -> Ar
         latest_quality_report=QualityReportRead.model_validate(latest_quality_report) if latest_quality_report else None,
         publishing_job=PublishingJobRead.model_validate(publishing_job) if publishing_job else None,
         editorial_reviews=[EditorialReviewRead.model_validate(review) for review in editorial_reviews],
+        topic=TopicRead.model_validate(topic).model_dump(mode="json") if topic else None,
+        sources=[SourceRead.model_validate(source).model_dump(mode="json") for source in sources],
+        research_notes=[ResearchNoteRead.model_validate(note).model_dump(mode="json") for note in research_notes],
+        brief=BriefRead.model_validate(brief).model_dump(mode="json") if brief else None,
     )
 
 

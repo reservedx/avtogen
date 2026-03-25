@@ -73,6 +73,38 @@ type ArticleWorkspace = {
     notes: string | null;
     created_at: string;
   }>;
+  topic: {
+    id: string;
+    working_title: string;
+    target_query: string;
+    audience: string;
+    status: string;
+  } | null;
+  sources: Array<{
+    id: string;
+    source_type: string;
+    title: string;
+    url: string;
+    reliability_score: number | null;
+  }>;
+  research_notes: Array<{
+    id: string;
+    fact_type: string;
+    content: string;
+    confidence_score: number;
+    citation_data: { url?: string; title?: string } | null;
+  }>;
+  brief: {
+    id: string;
+    version: number;
+    brief_json: {
+      primary_keyword?: string;
+      search_intent?: string;
+      required_sections?: string[];
+      faq_questions?: string[];
+      medical_safety_notes?: string[];
+    };
+  } | null;
 };
 
 function tone(status: string): string {
@@ -345,6 +377,102 @@ export default async function ArticleWorkspacePage({
               <div className="stack">
                 {warnings.length ? warnings.map((item) => <div className="mini-chip warn-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">Предупреждений нет</p>}
               </div>
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Контекст темы</p>
+            <h2>{workspace.topic?.working_title ?? "Тема не найдена"}</h2>
+            <div className="settings-list">
+              <div>
+                <dt>Запрос</dt>
+                <dd>{workspace.topic?.target_query ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Аудитория</dt>
+                <dd>{workspace.topic?.audience ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>Статус темы</dt>
+                <dd>{workspace.topic?.status ? statusLabel(workspace.topic.status) : "—"}</dd>
+              </div>
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">ТЗ</p>
+            <h2>{workspace.brief ? `Версия ${workspace.brief.version}` : "ТЗ пока нет"}</h2>
+            {workspace.brief ? (
+              <>
+                <div className="settings-list">
+                  <div>
+                    <dt>Основной ключ</dt>
+                    <dd>{workspace.brief.brief_json.primary_keyword ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Интент</dt>
+                    <dd>{workspace.brief.brief_json.search_intent ?? "—"}</dd>
+                  </div>
+                </div>
+                <div className="top-gap">
+                  <p className="panel-label">Обязательные разделы</p>
+                  <div className="stack">
+                    {(workspace.brief.brief_json.required_sections ?? []).slice(0, 8).map((section) => (
+                      <div className="mini-chip" key={section}>{section}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="top-gap">
+                  <p className="panel-label">Медицинские заметки</p>
+                  <div className="stack">
+                    {(workspace.brief.brief_json.medical_safety_notes ?? []).slice(0, 4).map((note) => (
+                      <div className="mini-chip warn-chip" key={note}>{note}</div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="muted">ТЗ для этой статьи пока не создано.</p>
+            )}
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Исходные материалы</p>
+            <h2>Источники по теме</h2>
+            <div className="stack">
+              {workspace.sources.length ? (
+                workspace.sources.map((source) => (
+                  <article className="topic-row" key={source.id}>
+                    <strong>{source.title}</strong>
+                    <span className="muted">{source.source_type}</span>
+                    <span className="muted">{source.url}</span>
+                    <span className="muted">Надежность: {source.reliability_score ?? "неизвестно"}</span>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Источников пока нет.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Research Notes</p>
+            <h2>Факты и сигналы</h2>
+            <div className="stack">
+              {workspace.research_notes.length ? (
+                workspace.research_notes.slice(0, 8).map((note) => (
+                  <article className="queue-item" key={note.id}>
+                    <div className="queue-header">
+                      <strong>{note.fact_type}</strong>
+                      <div className="badge">{Math.round(note.confidence_score * 100)}%</div>
+                    </div>
+                    <p>{note.content}</p>
+                    <p className="muted">{note.citation_data?.title ?? note.citation_data?.url ?? "Источник не указан"}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Research notes пока отсутствуют.</p>
+              )}
             </div>
           </article>
 

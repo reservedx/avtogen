@@ -195,3 +195,7 @@ class ArticleWorkspaceRead(BaseModel):
     latest_quality_report: QualityReportRead | None
     publishing_job: PublishingJobRead | None
     editorial_reviews: list[EditorialReviewRead]
+    topic: dict | None = None
+    sources: list[dict] = []
+    research_notes: list[dict] = []
+    brief: dict | None = None
