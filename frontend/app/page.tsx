@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { bulkSubmitForReviewAction, runBulkQualityCheckAction } from "./actions";
 import { getDashboardData } from "./lib/dashboard";
 
 function statusTone(status: string): string {
@@ -25,6 +26,7 @@ export default async function HomePage() {
   const published = data.articles.filter((article) => article.status === "published").slice(0, 3);
   const failedJobs = data.taskRuns.filter((task) => task.status === "failed").slice(0, 4);
   const leadArticle = reviewQueue[0] ?? data.articles[0];
+  const reviewQueueIds = reviewQueue.map((article) => article.id);
 
   return (
     <main className="page-shell">
@@ -133,6 +135,14 @@ export default async function HomePage() {
                 <p className="panel-label">Review Queue</p>
                 <h2>Articles needing editor attention</h2>
               </div>
+            </div>
+            <div className="action-columns top-gap">
+              <form action={runBulkQualityCheckAction.bind(null, reviewQueueIds)}>
+                <button className="action-button" type="submit">Run QA On Queue</button>
+              </form>
+              <form action={bulkSubmitForReviewAction.bind(null, reviewQueueIds)}>
+                <button className="action-button accent-button" type="submit">Submit Queue For Review</button>
+              </form>
             </div>
             <div className="stack">
               {reviewQueue.map((article) => (

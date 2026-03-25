@@ -13,7 +13,7 @@ from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
-from app.schemas.workflow import BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
+from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
@@ -30,6 +30,58 @@ def _fact_rows(db: Session, topic_id: UUID) -> list[dict]:
         }
         for note in notes
     ]
+
+
+def _run_quality_check_for_article(db: Session, article: Article) -> dict:
+    if not article.current_version_id:
+        raise HTTPException(status_code=404, detail="Article not found")
+    version = db.get(ArticleVersion, article.current_version_id)
+    image_count = db.query(Image).filter(Image.article_id == article.id).count()
+    topic = db.get(ContentTopic, article.topic_id)
+    source_rows = [
+        {
+            "source_type": source.source_type,
+            "url": source.url,
+            "title": source.title,
+            "summary": source.cleaned_content or source.raw_content or "",
+            "reliability_score": source.reliability_score,
+            "published_at": source.published_at,
+        }
+        for source in db.query(Source).filter(Source.topic_id == article.topic_id).all()
+    ]
+    brief_row = db.get(Brief, article.brief_id)
+    research_pack = None
+    if topic:
+        research_pack = ResearchPackBuilder().build(
+            topic.working_title,
+            topic.target_query,
+            topic.audience,
+            "informational",
+            source_rows,
+            _fact_rows(db, topic.id),
+        )
+    report = QualityGateService().evaluate(
+        version.content_markdown,
+        source_count=len(source_rows),
+        internal_link_count=0,
+        image_count=image_count,
+        has_meta=bool(version.meta_title and version.meta_description),
+        faq_count=len(version.faq_json.get("items", [])),
+        research_pack=research_pack,
+        brief=brief_row.brief_json if brief_row else None,
+    )
+    row = QualityReport(
+        article_version_id=version.id,
+        report_json=report,
+        quality_score=report["quality_score"],
+        risk_score=report["risk_score"],
+        blocking_issues_count=len(report["blockers"]),
+        warning_count=len(report["warnings"]),
+    )
+    article.quality_score = report["quality_score"]
+    article.risk_score = report["risk_score"]
+    db.add(row)
+    return report
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
@@ -450,47 +502,73 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
-    version = db.get(ArticleVersion, article.current_version_id)
-    image_count = db.query(Image).filter(Image.article_id == article.id).count()
-    topic = db.get(ContentTopic, article.topic_id)
-    source_rows = [
-        {
-            "source_type": source.source_type,
-            "url": source.url,
-            "title": source.title,
-            "summary": source.cleaned_content or source.raw_content or "",
-            "reliability_score": source.reliability_score,
-            "published_at": source.published_at,
-        }
-        for source in db.query(Source).filter(Source.topic_id == article.topic_id).all()
-    ]
-    brief_row = db.get(Brief, article.brief_id)
-    research_pack = None
-    if topic:
-        research_pack = ResearchPackBuilder().build(
-            topic.working_title,
-            topic.target_query,
-            topic.audience,
-            "informational",
-            source_rows,
-            _fact_rows(db, topic.id),
-        )
-    report = QualityGateService().evaluate(
-        version.content_markdown,
-        source_count=len(source_rows),
-        internal_link_count=0,
-        image_count=image_count,
-        has_meta=bool(version.meta_title and version.meta_description),
-        faq_count=len(version.faq_json.get("items", [])),
-        research_pack=research_pack,
-        brief=brief_row.brief_json if brief_row else None,
-    )
-    row = QualityReport(article_version_id=version.id, report_json=report, quality_score=report["quality_score"], risk_score=report["risk_score"], blocking_issues_count=len(report["blockers"]), warning_count=len(report["warnings"]))
-    article.quality_score = report["quality_score"]
-    article.risk_score = report["risk_score"]
-    db.add(row)
+    report = _run_quality_check_for_article(db, article)
     db.commit()
     return report
+
+
+@router.post("/articles/bulk-action", response_model=BulkArticleActionResponse)
+def bulk_article_action(payload: BulkArticleActionRequest, db: Session = Depends(get_db)) -> BulkArticleActionResponse:
+    supported_actions = {"run_quality_check", "submit_for_review", "approve", "publish"}
+    if payload.action not in supported_actions:
+        raise HTTPException(status_code=400, detail=f"Unsupported action: {payload.action}")
+    article_ids = [item.strip() for item in payload.article_ids if item.strip()]
+    if not article_ids:
+        raise HTTPException(status_code=400, detail="At least one article_id is required")
+    results: list[BulkActionResult] = []
+    completed = 0
+    for article_id in article_ids[:20]:
+        article = db.get(Article, UUID(article_id))
+        if not article:
+            results.append(BulkActionResult(article_id=article_id, status="skipped", detail="Article not found"))
+            continue
+        try:
+            if payload.action == "run_quality_check":
+                report = _run_quality_check_for_article(db, article)
+                results.append(BulkActionResult(article_id=article_id, status="completed", detail=report["overall_status"]))
+            elif payload.action == "submit_for_review":
+                article.status = "in_review"
+                results.append(BulkActionResult(article_id=article_id, status="completed", detail=article.status))
+            elif payload.action == "approve":
+                reviewer_name = payload.reviewer_name or "Editor"
+                article.status = "approved"
+                db.add(
+                    EditorialReview(
+                        article_id=article.id,
+                        article_version_id=article.current_version_id,
+                        reviewer_name=reviewer_name,
+                        decision="approved",
+                        notes=payload.notes,
+                    )
+                )
+                results.append(BulkActionResult(article_id=article_id, status="completed", detail="approved"))
+            elif payload.action == "publish":
+                if article.status != "approved":
+                    results.append(BulkActionResult(article_id=article_id, status="skipped", detail="Only approved articles can be published"))
+                    continue
+                report = db.query(QualityReport).filter(QualityReport.article_version_id == article.current_version_id).order_by(QualityReport.created_at.desc()).first()
+                if not report:
+                    results.append(BulkActionResult(article_id=article_id, status="skipped", detail="Quality report required before publishing"))
+                    continue
+                version = db.get(ArticleVersion, article.current_version_id)
+                images = db.query(Image).filter(Image.article_id == article.id).all()
+                payload_data = {"title": version.meta_title or article.title, "slug": article.slug, "excerpt": version.excerpt, "status": "draft", "image_count": len(images)}
+                job = PublishingJob(article_id=article.id, target_system="wordpress", status="running", request_payload=payload_data, response_payload={})
+                db.add(job)
+                db.flush()
+                response = PublishingService().publish_article(article, version, images)
+                remote_post = response["post"]
+                article.cms_post_id = str(remote_post["id"])
+                article.published_url = remote_post.get("link")
+                article.status = "published"
+                job.status = "published"
+                job.response_payload = response
+                results.append(BulkActionResult(article_id=article_id, status="completed", detail="published"))
+            completed += 1
+        except Exception as exc:
+            results.append(BulkActionResult(article_id=article_id, status="failed", detail=str(exc)))
+    db.commit()
+    return BulkArticleActionResponse(requested=len(article_ids[:20]), completed=completed, results=results)
 
 
 @router.get("/articles/{article_id}/quality-report", response_model=QualityReportRead)
