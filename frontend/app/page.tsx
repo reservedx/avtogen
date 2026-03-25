@@ -66,7 +66,7 @@ export default async function HomePage() {
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Редакторский центр</p>
-          <h1>Быстрый конвейер статей с обязательной модерацией изображений</h1>
+          <h1>Avtogen</h1>
           <p className="hero-text">
             Платформа собирает темы, прогоняет их по fast lane, создаёт черновики и готовит публикацию.
             Текст может идти по ускоренному маршруту, но изображения всегда требуют ручного одобрения перед отправкой в CMS.
