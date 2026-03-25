@@ -29,6 +29,7 @@ class _FakeImagesClient:
 
 class _FakeGateway:
     def __init__(self, b64_json: str) -> None:
+        self.image_model = "gpt-image-1"
         self.client = type("Client", (), {"images": _FakeImagesClient(b64_json)})()
 
     def generate_image_variants(self, article_title: str) -> list[dict]:

@@ -109,6 +109,9 @@ class SettingsSummaryRead(BaseModel):
     api_prefix: str
     database_url: str
     database_is_sqlite: bool
+    asset_storage_backend: str
+    asset_storage_dir: str
+    s3_bucket: str
     openai_enabled: bool
     auto_publish_enabled: bool
     use_stub_generation: bool

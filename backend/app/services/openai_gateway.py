@@ -18,6 +18,7 @@ class OpenAIGateway:
             and settings.openai_api_key != "changeme"
             and not settings.use_stub_generation
         )
+        self.image_model = settings.openai_image_model
         self.client = OpenAI(api_key=settings.openai_api_key) if self.enabled else None
 
     def _json_completion(self, model: str, system_prompt: str, user_prompt: str, temperature: float) -> dict | list | None:

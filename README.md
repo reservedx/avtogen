@@ -94,6 +94,7 @@ Implemented in scaffold form:
 - manual review routing with editorial decision audit trail
 - article pipeline orchestrator
 - OpenAI gateway with structured JSON generation and fallback validation
+- asset storage abstraction with local and S3-compatible persistence modes
 - WordPress publishing service with media upload and featured image flow
 - minimal Next.js admin UI
 - Alembic initial migration
@@ -168,14 +169,16 @@ To enable real OpenAI generation:
 1. Set `OPENAI_API_KEY` in `.env`
 2. Set `USE_STUB_GENERATION=false`
 3. Optional: set `ASSET_STORAGE_DIR` if you want generated images stored outside the default `data/generated_assets`
-4. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
+4. Optional: set `ASSET_STORAGE_BACKEND=s3` or `ASSET_STORAGE_BACKEND=hybrid` for MinIO/S3 upload
+5. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
 
 When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` will:
 
 - request 3 medically neutral prompts
 - generate PNG assets through the OpenAI Images API when available
 - save files under `data/generated_assets/<article-slug>/`
-- gracefully fall back to prompt-only image records if binary generation fails
+- optionally upload them to S3-compatible storage and store remote URLs
+- gracefully fall back to local prompt-only image records if binary generation fails
 ## Tests
 
 ```bash
