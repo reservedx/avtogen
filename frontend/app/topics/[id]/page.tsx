@@ -2,6 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { fetchApiJson } from "../../lib/api";
+import {
+  collectSourcesAction,
+  extractResearchNotesAction,
+  generateBriefAction,
+  generateDraftAction,
+} from "./actions";
 
 type TopicWorkspace = {
   topic: {
@@ -122,6 +128,31 @@ export default async function TopicWorkspacePage({
 
       <section className="dashboard-grid">
         <div className="column-main">
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Topic Controls</p>
+                <h2>Move from research to draft</h2>
+              </div>
+            </div>
+            <div className="action-grid">
+              <form action={collectSourcesAction.bind(null, id)}>
+                <button className="action-button" type="submit">Collect Sources</button>
+              </form>
+              <form action={extractResearchNotesAction.bind(null, id)}>
+                <button className="action-button" type="submit">Refresh Notes</button>
+              </form>
+              <form action={generateBriefAction.bind(null, id)}>
+                <button className="action-button" type="submit">Generate Brief</button>
+              </form>
+            </div>
+            <div className="top-gap">
+              <form action={generateDraftAction.bind(null, id)}>
+                <button className="action-button accent-button" type="submit">Generate Draft Article</button>
+              </form>
+            </div>
+          </article>
+
           <article className="panel">
             <div className="panel-head">
               <div>
