@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic
 from app.db.session import SessionLocal
@@ -25,7 +26,8 @@ def test_bulk_pipeline_run_endpoint_returns_batch_summary() -> None:
 
 
 def test_bulk_article_action_endpoint_runs_quality_checks() -> None:
-    cluster = Cluster(name="Bulk Ops", slug="bulk-ops")
+    suffix = uuid4().hex[:8]
+    cluster = Cluster(name="Bulk Ops", slug=f"bulk-ops-{suffix}")
     topic = ContentTopic(
         cluster_id=cluster.id,
         working_title="Frequent urination with cystitis",
@@ -33,7 +35,13 @@ def test_bulk_article_action_endpoint_runs_quality_checks() -> None:
         audience="general audience",
     )
     brief = Brief(topic_id=topic.id, version=1, brief_json={"required_sections": []}, prompt_snapshot="snapshot", model_name="stub")
-    article = Article(topic_id=topic.id, brief_id=brief.id, title="Frequent urination with cystitis", slug="frequent-urination-with-cystitis", status="draft")
+    article = Article(
+        topic_id=topic.id,
+        brief_id=brief.id,
+        title="Frequent urination with cystitis",
+        slug=f"frequent-urination-with-cystitis-{suffix}",
+        status="draft",
+    )
     version = ArticleVersion(
         article_id=article.id,
         version=1,

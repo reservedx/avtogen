@@ -33,3 +33,22 @@ class BulkArticleActionResponse(BaseModel):
     requested: int
     completed: int
     results: list[BulkActionResult]
+
+
+class DemoBootstrapRequest(BaseModel):
+    topic_query: str = "frequent urination with cystitis"
+    audience: str = "general audience"
+    cluster_name: str = "Demo Cluster"
+
+
+class DemoBootstrapResponse(BaseModel):
+    cluster_id: str
+    topic_id: str
+    brief_id: str
+    article_id: str
+    quality_status: str
+    quality_score: float
+    risk_score: float
+    sources_collected: int
+    research_notes_extracted: int
+    images_generated: int

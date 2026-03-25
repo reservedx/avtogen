@@ -13,7 +13,7 @@ from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
-from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
+from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
@@ -662,3 +662,134 @@ def run_pipeline_bulk(payload: BulkPipelineRunRequest, db: Session = Depends(get
     if len(topic_queries) > 20:
         raise HTTPException(status_code=400, detail="Bulk pipeline is limited to 20 topic queries per request")
     return PipelineService().run_bulk_with_task_log(db, topic_queries, payload.audience)
+
+
+@router.post("/demo/bootstrap", response_model=DemoBootstrapResponse)
+def bootstrap_demo(payload: DemoBootstrapRequest, db: Session = Depends(get_db)) -> DemoBootstrapResponse:
+    cluster = Cluster(
+        name=payload.cluster_name,
+        slug=InterlinkingService()._slug_like(f"{payload.cluster_name}-{payload.topic_query}")[:255],
+        description="Local demo cluster",
+    )
+    db.add(cluster)
+    db.flush()
+
+    topic = ContentTopic(
+        cluster_id=cluster.id,
+        working_title=payload.topic_query.title(),
+        target_query=payload.topic_query,
+        audience=payload.audience,
+        content_type="blog_post",
+        status="planned",
+        cannibalization_hash=InterlinkingService().cannibalization_hash(payload.topic_query),
+    )
+    db.add(topic)
+    db.flush()
+
+    providers = [YouTubeTranscriptProvider(), ManualSourceProvider()]
+    collected = []
+    for provider in providers:
+        collected.extend(provider.collect(topic.target_query))
+    for item in collected:
+        db.add(
+            Source(
+                topic_id=topic.id,
+                source_type=item["source_type"],
+                url=item["url"],
+                title=item["title"],
+                author=item.get("author"),
+                published_at=item.get("published_at"),
+                transcript_text=item.get("transcript_text"),
+                raw_content=item.get("raw_content"),
+                cleaned_content=item.get("cleaned_content"),
+                reliability_score=item.get("reliability_score"),
+                ingestion_status=item.get("ingestion_status", "ingested"),
+            )
+        )
+    db.flush()
+
+    topic_sources = db.query(Source).filter(Source.topic_id == topic.id).all()
+    extracted_notes = ResearchNoteExtractor().extract_for_topic(db, topic.id, topic_sources)
+
+    source_rows = [
+        {
+            "source_type": source.source_type,
+            "url": source.url,
+            "title": source.title,
+            "reliability_score": source.reliability_score,
+            "summary": source.cleaned_content or source.raw_content or "",
+        }
+        for source in topic_sources
+    ]
+    research_pack = ResearchPackBuilder().build(
+        topic.working_title,
+        topic.target_query,
+        topic.audience,
+        "informational",
+        source_rows,
+        _fact_rows(db, topic.id),
+    )
+    gateway = OpenAIGateway()
+    brief_generator = BriefGenerator()
+    brief_payload = gateway.generate_brief_json(research_pack) or brief_generator.generate(research_pack)
+    brief = Brief(
+        topic_id=topic.id,
+        version=1,
+        brief_json=brief_payload,
+        prompt_snapshot=brief_generator.prompt_snapshot(research_pack),
+        model_name=settings.openai_brief_model if gateway.enabled else "stub",
+    )
+    db.add(brief)
+    db.flush()
+
+    draft_generator = DraftGenerator()
+    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(brief.brief_json, research_pack)
+    article = Article(topic_id=topic.id, brief_id=brief.id, title=draft["title"], slug=draft["slug"], status="draft")
+    db.add(article)
+    db.flush()
+
+    version = ArticleVersion(
+        article_id=article.id,
+        version=1,
+        content_markdown=draft["content_markdown"],
+        content_html=draft["content_html"],
+        excerpt=draft["excerpt"],
+        meta_title=draft["meta_title"],
+        meta_description=draft["meta_description"],
+        faq_json=draft["faq_json"],
+        schema_json=draft["schema_json"],
+        word_count=len(draft["content_markdown"].split()),
+        created_by="system",
+        generation_context={
+            "brief_id": str(brief.id),
+            "generation_mode": "openai" if gateway.enabled else "stub",
+            "image_prompts": draft["image_prompts"],
+            "alt_texts": draft["alt_texts"],
+            "demo_bootstrap": True,
+        },
+    )
+    db.add(version)
+    db.flush()
+    article.current_version_id = version.id
+
+    image_rows = []
+    for image_payload in ImageGenerator().generate(article.title, article.slug):
+        image = Image(article_id=article.id, **image_payload)
+        db.add(image)
+        image_rows.append(image)
+
+    report = _run_quality_check_for_article(db, article)
+    db.commit()
+
+    return DemoBootstrapResponse(
+        cluster_id=str(cluster.id),
+        topic_id=str(topic.id),
+        brief_id=str(brief.id),
+        article_id=str(article.id),
+        quality_status=report["overall_status"],
+        quality_score=report["quality_score"],
+        risk_score=report["risk_score"],
+        sources_collected=len(collected),
+        research_notes_extracted=len(extracted_notes),
+        images_generated=len(image_rows),
+    )

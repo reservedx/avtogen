@@ -1,4 +1,6 @@
-const API_BASE = process.env.API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
+const API_BASE =
+  process.env.API_BASE_URL ??
+  (process.env.API_BASE_HOSTPORT ? `http://${process.env.API_BASE_HOSTPORT}/api/v1` : "http://127.0.0.1:8000/api/v1");
 
 export async function fetchApiJson<T>(path: string): Promise<T | null> {
   try {

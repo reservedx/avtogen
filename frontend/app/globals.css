@@ -98,6 +98,15 @@ a {
   line-height: 1.6;
 }
 
+.hero-action {
+  margin-top: 18px;
+}
+
+.hero-button {
+  width: fit-content;
+  min-width: 220px;
+}
+
 .hero-status {
   min-width: 240px;
   display: grid;

@@ -1,6 +1,12 @@
 import Link from "next/link";
 
-import { bulkSubmitForReviewAction, runBulkQualityCheckAction } from "./actions";
+import {
+  bulkApproveAction,
+  bulkPublishAction,
+  bulkSubmitForReviewAction,
+  createDemoProjectAction,
+  runBulkQualityCheckAction,
+} from "./actions";
 import { getDashboardData } from "./lib/dashboard";
 
 function statusTone(status: string): string {
@@ -27,6 +33,7 @@ export default async function HomePage() {
   const failedJobs = data.taskRuns.filter((task) => task.status === "failed").slice(0, 4);
   const leadArticle = reviewQueue[0] ?? data.articles[0];
   const reviewQueueIds = reviewQueue.map((article) => article.id);
+  const approvedArticleIds = data.articles.filter((article) => article.status === "approved").map((article) => article.id);
 
   return (
     <main className="page-shell">
@@ -38,6 +45,9 @@ export default async function HomePage() {
             The admin surfaces risky drafts, quality signals, storage mode, and publishing readiness in one place.
             It is designed for YMYL workflows where draft quality and human review matter more than raw output volume.
           </p>
+          <form action={createDemoProjectAction} className="hero-action">
+            <button className="action-button accent-button hero-button" type="submit">Create Demo Project</button>
+          </form>
         </div>
         <div className="hero-status">
           <div className={`badge ${data.apiOnline ? "success" : "warn"}`}>
@@ -125,7 +135,7 @@ export default async function HomePage() {
                 </div>
               </div>
             ) : (
-              <p className="muted">Create a topic in the API to start populating the queue.</p>
+              <p className="muted">Create a topic in the API or use the demo button above to populate the queue.</p>
             )}
           </article>
 
@@ -142,6 +152,14 @@ export default async function HomePage() {
               </form>
               <form action={bulkSubmitForReviewAction.bind(null, reviewQueueIds)}>
                 <button className="action-button accent-button" type="submit">Submit Queue For Review</button>
+              </form>
+            </div>
+            <div className="action-columns top-gap">
+              <form action={bulkApproveAction.bind(null, reviewQueueIds)}>
+                <button className="action-button" type="submit">Approve Queue</button>
+              </form>
+              <form action={bulkPublishAction.bind(null, approvedArticleIds)}>
+                <button className="action-button accent-button" type="submit">Publish Approved</button>
               </form>
             </div>
             <div className="stack">

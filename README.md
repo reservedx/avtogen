@@ -163,7 +163,54 @@ poetry run python -m app.seeds
 powershell -ExecutionPolicy Bypass -File .\scripts\run_tests.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\run_backend.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\run_frontend.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\run_demo.ps1
 ```
+
+## Fastest Prototype Try
+
+1. Start backend:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_backend.ps1
+```
+
+2. In a second terminal start frontend:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_frontend.ps1
+```
+
+3. In a third terminal bootstrap a demo article:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_demo.ps1
+```
+
+This will create a demo cluster, topic, sources, research notes, brief, draft, images, and a quality report so you can immediately inspect the prototype in the admin UI.
+
+## Render Deployment
+
+The repo now includes a root [render.yaml](/C:/Users/мур7евг9/Desktop/avtogen/render.yaml) blueprint for a simple online prototype deployment:
+
+- `avtogen-backend` as a Docker web service
+- `avtogen-frontend` as a Node.js web service
+- `avtogen-db` as Render Postgres
+
+To deploy:
+
+1. Create or sign in to your Render account.
+2. Create a new Blueprint and connect the GitHub repo.
+3. Render will detect `render.yaml` automatically.
+4. Fill in secret env vars when prompted:
+   - `OPENAI_API_KEY`
+   - `YOUTUBE_API_KEY`
+   - optional WordPress credentials if you want live publishing
+5. Deploy the stack.
+
+Official Render docs used for this setup:
+- [Blueprint YAML Reference](https://render.com/docs/blueprint-spec)
+- [Render Blueprints](https://render.com/docs/infrastructure-as-code)
+- [Environment Variables via Blueprints](https://render.com/docs/configure-environment-variables)
 
 ## OpenAI Mode
 
