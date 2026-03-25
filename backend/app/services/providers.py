@@ -110,12 +110,22 @@ class YouTubeTranscriptApiFetcher:
         except ImportError:
             return ""
 
+        api = YouTubeTranscriptApi()
         try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages)
+            transcript = api.fetch(video_id, languages=self.languages)
         except Exception:
-            return ""
+            try:
+                transcript_list = api.list(video_id)
+                best_match = transcript_list.find_transcript(self.languages)
+                transcript = best_match.fetch()
+            except Exception:
+                return ""
 
-        return " ".join(part.get("text", "") for part in transcript if part.get("text"))
+        if hasattr(transcript, "to_raw_data"):
+            rows = transcript.to_raw_data()
+        else:
+            rows = transcript
+        return " ".join(part.get("text", "") for part in rows if part.get("text"))
 
 
 class YouTubeTranscriptProvider:
