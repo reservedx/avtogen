@@ -177,6 +177,13 @@ To enable real OpenAI generation:
 4. Optional: set `ASSET_STORAGE_BACKEND=s3` or `ASSET_STORAGE_BACKEND=hybrid` for MinIO/S3 upload
 5. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
 
+To enable real YouTube search/transcript ingestion:
+
+1. Set `YOUTUBE_API_KEY`
+2. Install dependencies from `pyproject.toml` so `youtube-transcript-api` is available
+3. Optional: tune `YOUTUBE_MAX_RESULTS`, `YOUTUBE_REGION_CODE`, `YOUTUBE_RELEVANCE_LANGUAGE`, and `YOUTUBE_TRANSCRIPT_LANGUAGES`
+4. Keep using `POST /api/v1/topics/{id}/collect-sources`; the provider will switch from fallback demo records to live search/transcript boundaries when possible
+
 When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` will:
 
 - request 3 medically neutral prompts

@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     max_risk_score_for_auto_publish: float = Field(default=20, alias="MAX_RISK_SCORE_FOR_AUTO_PUBLISH")
     required_source_count: int = Field(default=2, alias="REQUIRED_SOURCE_COUNT")
     similarity_threshold: float = Field(default=0.86, alias="SIMILARITY_THRESHOLD")
+    youtube_api_key: str = Field(default="changeme", alias="YOUTUBE_API_KEY")
+    youtube_max_results: int = Field(default=5, alias="YOUTUBE_MAX_RESULTS")
+    youtube_region_code: str | None = Field(default=None, alias="YOUTUBE_REGION_CODE")
+    youtube_relevance_language: str | None = Field(default=None, alias="YOUTUBE_RELEVANCE_LANGUAGE")
+    youtube_transcript_languages: str = Field(default="en,ru", alias="YOUTUBE_TRANSCRIPT_LANGUAGES")
     wordpress_base_url: str = Field(default="https://example.com", alias="WORDPRESS_BASE_URL")
     wordpress_username: str = Field(default="editor", alias="WORDPRESS_USERNAME")
     wordpress_app_password: str = Field(default="changeme", alias="WORDPRESS_APP_PASSWORD")
@@ -53,6 +58,10 @@ class Settings(BaseSettings):
     @property
     def openai_enabled(self) -> bool:
         return bool(self.openai_api_key) and self.openai_api_key != "changeme" and not self.use_stub_generation
+
+    @property
+    def youtube_enabled(self) -> bool:
+        return bool(self.youtube_api_key) and self.youtube_api_key != "changeme"
 
 
 @lru_cache

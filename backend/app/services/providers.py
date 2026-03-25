@@ -17,6 +17,25 @@ class SourceProvider(Protocol):
         ...
 
 
+class YouTubeSearchClient(Protocol):
+    def search(self, topic_query: str) -> list["YouTubeVideoSearchItem"]:
+        ...
+
+
+class TranscriptFetcher(Protocol):
+    def fetch(self, video_id: str) -> str:
+        ...
+
+
+@dataclass
+class YouTubeVideoSearchItem:
+    video_id: str
+    title: str
+    channel_name: str
+    description: str
+    published_at: datetime | None = None
+
+
 @dataclass
 class YouTubeVideoRecord:
     video_id: str
@@ -31,48 +50,111 @@ class YouTubeVideoRecord:
         return f"https://youtube.com/watch?v={self.video_id}"
 
 
+class YouTubeDataApiSearchClient:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        self.api_key = api_key or settings.youtube_api_key
+        self.http_client = http_client or httpx.Client(timeout=20.0)
+        self.base_url = "https://www.googleapis.com/youtube/v3/search"
+
+    def search(self, topic_query: str) -> list[YouTubeVideoSearchItem]:
+        if not self.api_key or self.api_key == "changeme":
+            return []
+        params = {
+            "part": "snippet",
+            "q": topic_query,
+            "key": self.api_key,
+            "type": "video",
+            "maxResults": settings.youtube_max_results,
+            "safeSearch": "moderate",
+        }
+        if settings.youtube_region_code:
+            params["regionCode"] = settings.youtube_region_code
+        if settings.youtube_relevance_language:
+            params["relevanceLanguage"] = settings.youtube_relevance_language
+
+        response = self.http_client.get(self.base_url, params=params)
+        response.raise_for_status()
+        payload = response.json()
+        items: list[YouTubeVideoSearchItem] = []
+        for item in payload.get("items", []):
+            video_id = item.get("id", {}).get("videoId")
+            snippet = item.get("snippet", {})
+            if not video_id:
+                continue
+            items.append(
+                YouTubeVideoSearchItem(
+                    video_id=video_id,
+                    title=snippet.get("title", ""),
+                    channel_name=snippet.get("channelTitle", "Unknown channel"),
+                    description=snippet.get("description", ""),
+                    published_at=_parse_youtube_datetime(snippet.get("publishedAt")),
+                )
+            )
+        return items
+
+
+class YouTubeTranscriptApiFetcher:
+    def __init__(self, languages: list[str] | None = None) -> None:
+        raw_languages = languages or [
+            item.strip() for item in settings.youtube_transcript_languages.split(",") if item.strip()
+        ]
+        self.languages = raw_languages or ["en"]
+
+    def fetch(self, video_id: str) -> str:
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+        except ImportError:
+            return ""
+
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages)
+        except Exception:
+            return ""
+
+        return " ".join(part.get("text", "") for part in transcript if part.get("text"))
+
+
 class YouTubeTranscriptProvider:
     def __init__(
         self,
-        search_client: object | None = None,
-        transcript_fetcher: object | None = None,
+        search_client: YouTubeSearchClient | None = None,
+        transcript_fetcher: TranscriptFetcher | None = None,
     ) -> None:
         self.cleaner = TranscriptCleaner()
-        self.search_client = search_client
-        self.transcript_fetcher = transcript_fetcher
+        self.search_client = search_client or (
+            YouTubeDataApiSearchClient() if settings.youtube_enabled else None
+        )
+        self.transcript_fetcher = transcript_fetcher or YouTubeTranscriptApiFetcher()
 
     def collect(self, topic_query: str) -> list[dict]:
         records = self._search(topic_query)
         return [self._to_source_payload(record) for record in records if record.transcript_text.strip()]
 
     def _search(self, topic_query: str) -> list[YouTubeVideoRecord]:
-        if self.search_client and hasattr(self.search_client, "search"):
+        if self.search_client:
             items = self.search_client.search(topic_query)
             records: list[YouTubeVideoRecord] = []
             for item in items:
-                video_id = getattr(item, "video_id", "")
-                transcript = self._fetch_transcript(video_id)
-                if not video_id or not transcript:
+                transcript = self.transcript_fetcher.fetch(item.video_id) if self.transcript_fetcher else ""
+                if not transcript:
                     continue
                 records.append(
                     YouTubeVideoRecord(
-                        video_id=video_id,
-                        title=getattr(item, "title", f"YouTube research for {topic_query}"),
-                        channel_name=getattr(item, "channel_name", "Unknown channel"),
-                        description=getattr(item, "description", ""),
+                        video_id=item.video_id,
+                        title=item.title or f"YouTube research for {topic_query}",
+                        channel_name=item.channel_name or "Unknown channel",
+                        description=item.description or "",
                         transcript_text=transcript,
-                        published_at=getattr(item, "published_at", None),
+                        published_at=item.published_at,
                     )
                 )
             if records:
                 return records
         return [self._fallback_record(topic_query)]
-
-    def _fetch_transcript(self, video_id: str) -> str:
-        if self.transcript_fetcher and hasattr(self.transcript_fetcher, "fetch"):
-            transcript = self.transcript_fetcher.fetch(video_id)
-            return transcript or ""
-        return ""
 
     def _fallback_record(self, topic_query: str) -> YouTubeVideoRecord:
         return YouTubeVideoRecord(
@@ -179,3 +261,12 @@ class WordPressAdapter:
         )
         response.raise_for_status()
         return response.json()
+
+
+def _parse_youtube_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
