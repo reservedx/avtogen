@@ -11,9 +11,9 @@ from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspac
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
-from app.schemas.topic import TopicCreate, TopicRead, TopicWorkspaceRead
+from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
+from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -109,6 +109,7 @@ def list_keywords(cluster_id: UUID | None = None, db: Session = Depends(get_db))
 @router.post("/topics", response_model=TopicRead)
 def create_topic(payload: TopicCreate, db: Session = Depends(get_db)) -> ContentTopic:
     topic = ContentTopic(**payload.model_dump())
+    topic.cannibalization_hash = InterlinkingService().cannibalization_hash(f"{topic.working_title} {topic.target_query}")
     db.add(topic)
     db.commit()
     db.refresh(topic)
@@ -144,6 +145,39 @@ def get_topic_workspace(topic_id: UUID, db: Session = Depends(get_db)) -> TopicW
         briefs=[BriefRead.model_validate(brief).model_dump(mode="json") for brief in briefs],
         articles=[ArticleRead.model_validate(article).model_dump(mode="json") for article in articles],
     )
+
+
+@router.get("/topics/{topic_id}/cannibalization-check", response_model=CannibalizationReportRead)
+def check_topic_cannibalization(topic_id: UUID, db: Session = Depends(get_db)) -> CannibalizationReportRead:
+    topic = db.get(ContentTopic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    interlinking = InterlinkingService()
+    existing_items = [
+        {
+            "entity_id": str(other.id),
+            "entity_type": "topic",
+            "title": other.working_title,
+            "slug": None,
+            "comparison_text": f"{other.working_title} {other.target_query}",
+        }
+        for other in db.query(ContentTopic).filter(ContentTopic.id != topic.id).all()
+    ]
+    existing_items.extend(
+        [
+            {
+                "entity_id": str(article.id),
+                "entity_type": "article",
+                "title": article.title,
+                "slug": article.slug,
+                "comparison_text": article.title,
+            }
+            for article in db.query(Article).filter(Article.status == "published").all()
+        ]
+    )
+    candidate_text = f"{topic.working_title} {topic.target_query}"
+    report = interlinking.find_cannibalization_candidates(candidate_text, existing_items)
+    return CannibalizationReportRead(topic_id=topic.id, candidate_text=candidate_text, **report)
 
 
 @router.post("/topics/{topic_id}/collect-sources")

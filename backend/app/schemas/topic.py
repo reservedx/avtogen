@@ -24,6 +24,7 @@ class TopicRead(ORMModel):
     audience: str
     content_type: str
     status: str
+    cannibalization_hash: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -34,3 +35,20 @@ class TopicWorkspaceRead(BaseModel):
     research_notes: list[dict]
     briefs: list[dict]
     articles: list[dict]
+
+
+class CannibalizationMatchRead(BaseModel):
+    entity_id: str | None
+    entity_type: str
+    title: str | None
+    slug: str | None
+    similarity_score: float
+    slug_overlap: bool
+
+
+class CannibalizationReportRead(BaseModel):
+    topic_id: UUID
+    candidate_text: str
+    flagged: bool
+    max_score: float
+    matches: list[CannibalizationMatchRead]
