@@ -137,12 +137,17 @@ class SettingsSummaryRead(BaseModel):
     s3_bucket: str
     openai_enabled: bool
     auto_publish_enabled: bool
+    fast_publish_enabled: bool
+    auto_approve_low_risk: bool
+    auto_publish_low_risk: bool
     use_stub_generation: bool
     openai_brief_model: str
     openai_draft_model: str
     openai_image_model: str
     min_quality_score: float
     max_risk_score_for_auto_publish: float
+    fast_lane_min_quality_score: float
+    fast_lane_max_risk_score: float
     required_source_count: int
     similarity_threshold: float
 

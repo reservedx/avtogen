@@ -7,6 +7,7 @@ from app.services.platform import (
     QualityGateService,
     ResearchNoteExtractor,
     ResearchPackBuilder,
+    RiskTierService,
     ReviewWorkflowService,
     YouTubeTranscriptProvider,
 )
@@ -21,6 +22,7 @@ class ArticlePipeline:
         self.brief_generator = BriefGenerator()
         self.draft_generator = DraftGenerator()
         self.quality_gate = QualityGateService()
+        self.risk_service = RiskTierService()
         self.review_service = ReviewWorkflowService()
         self.interlinking = InterlinkingService()
         self.openai_gateway = OpenAIGateway()
@@ -41,6 +43,7 @@ class ArticlePipeline:
         research_pack = self.research_builder.build(topic_query, topic_query, audience, "informational", sources, facts)
         brief = self.openai_gateway.generate_brief_json(research_pack) or self.brief_generator.generate(research_pack)
         draft = self.openai_gateway.generate_draft_json(brief, research_pack) or self.draft_generator.generate(brief, research_pack)
+        risk_tier = self.risk_service.classify(topic_query, draft["title"], draft["content_markdown"])
         quality = self.quality_gate.evaluate(
             draft["content_markdown"],
             len(sources),
@@ -50,12 +53,20 @@ class ArticlePipeline:
             len(draft["faq_json"]["items"]),
             research_pack=research_pack,
             brief=brief,
+            risk_tier=risk_tier,
         )
-        needs_review = self.review_service.requires_manual_review(draft["content_markdown"]) or quality["overall_status"] != "pass"
+        fast_lane = self.risk_service.fast_lane_eligible(risk_tier, quality)
+        needs_review = (
+            self.review_service.requires_manual_review(draft["content_markdown"])
+            or (quality["overall_status"] != "pass" and not fast_lane)
+            or risk_tier != "low"
+        )
         slug = draft.get("slug", "")
         cannibalization_flag = self.interlinking.looks_cannibalized(slug, [])
         return {
             "status": "in_review" if needs_review or cannibalization_flag else "approved",
+            "risk_tier": risk_tier,
+            "fast_lane_eligible": fast_lane,
             "research_pack": research_pack,
             "brief": brief,
             "draft": draft,

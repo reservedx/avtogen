@@ -37,8 +37,13 @@ class Settings(BaseSettings):
     openai_image_model: str = Field(default="gpt-image-1", alias="OPENAI_IMAGE_MODEL")
     openai_image_output_format: str = Field(default="webp", alias="OPENAI_IMAGE_OUTPUT_FORMAT")
     auto_publish_enabled: bool = Field(default=False, alias="AUTO_PUBLISH_ENABLED")
+    fast_publish_enabled: bool = Field(default=True, alias="FAST_PUBLISH_ENABLED")
+    auto_approve_low_risk: bool = Field(default=True, alias="AUTO_APPROVE_LOW_RISK")
+    auto_publish_low_risk: bool = Field(default=False, alias="AUTO_PUBLISH_LOW_RISK")
     min_quality_score: float = Field(default=78, alias="MIN_QUALITY_SCORE")
     max_risk_score_for_auto_publish: float = Field(default=20, alias="MAX_RISK_SCORE_FOR_AUTO_PUBLISH")
+    fast_lane_min_quality_score: float = Field(default=68, alias="FAST_LANE_MIN_QUALITY_SCORE")
+    fast_lane_max_risk_score: float = Field(default=12, alias="FAST_LANE_MAX_RISK_SCORE")
     required_source_count: int = Field(default=2, alias="REQUIRED_SOURCE_COUNT")
     similarity_threshold: float = Field(default=0.86, alias="SIMILARITY_THRESHOLD")
     default_medical_disclaimer: str = Field(

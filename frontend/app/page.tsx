@@ -259,6 +259,14 @@ export default async function HomePage() {
                 <dd>{data.settings.auto_publish_enabled ? "Включена" : "Только после ревью"}</dd>
               </div>
               <div>
+                <dt>Fast publish</dt>
+                <dd>{data.settings.fast_publish_enabled ? "Включен" : "Выключен"}</dd>
+              </div>
+              <div>
+                <dt>Автоапрув low-risk</dt>
+                <dd>{data.settings.auto_approve_low_risk ? "Да" : "Нет"}</dd>
+              </div>
+              <div>
                 <dt>База данных</dt>
                 <dd>{data.settings.database_is_sqlite ? "SQLite dev-режим" : "Внешняя база данных"}</dd>
               </div>

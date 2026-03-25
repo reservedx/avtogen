@@ -14,7 +14,7 @@ from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
+from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -51,7 +51,9 @@ def _run_quality_check_for_article(db: Session, article: Article) -> dict:
     ]
     brief_row = db.get(Brief, article.brief_id)
     research_pack = None
+    risk_tier = "medium"
     if topic:
+        risk_tier = RiskTierService().classify(topic.working_title, topic.target_query, version.content_markdown)
         research_pack = ResearchPackBuilder().build(
             topic.working_title,
             topic.target_query,
@@ -69,6 +71,7 @@ def _run_quality_check_for_article(db: Session, article: Article) -> dict:
         faq_count=len(version.faq_json.get("items", [])),
         research_pack=research_pack,
         brief=brief_row.brief_json if brief_row else None,
+        risk_tier=risk_tier,
     )
     row = QualityReport(
         article_version_id=version.id,
@@ -97,12 +100,17 @@ def get_settings_summary() -> SettingsSummaryRead:
         s3_bucket=settings.s3_bucket,
         openai_enabled=settings.openai_enabled,
         auto_publish_enabled=settings.auto_publish_enabled,
+        fast_publish_enabled=settings.fast_publish_enabled,
+        auto_approve_low_risk=settings.auto_approve_low_risk,
+        auto_publish_low_risk=settings.auto_publish_low_risk,
         use_stub_generation=settings.use_stub_generation,
         openai_brief_model=settings.openai_brief_model,
         openai_draft_model=settings.openai_draft_model,
         openai_image_model=settings.openai_image_model,
         min_quality_score=settings.min_quality_score,
         max_risk_score_for_auto_publish=settings.max_risk_score_for_auto_publish,
+        fast_lane_min_quality_score=settings.fast_lane_min_quality_score,
+        fast_lane_max_risk_score=settings.fast_lane_max_risk_score,
         required_source_count=settings.required_source_count,
         similarity_threshold=settings.similarity_threshold,
     )
@@ -443,6 +451,18 @@ def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
     db.add(version)
     db.flush()
     article.current_version_id = version.id
+    report = _run_quality_check_for_article(db, article)
+    risk_tier = report.get("risk_tier", RiskTierService().classify(topic.working_title, topic.target_query, draft["content_markdown"]))
+    fast_lane = RiskTierService().fast_lane_eligible(risk_tier, report)
+    if fast_lane and settings.auto_approve_low_risk:
+        article.status = "approved"
+        if settings.auto_publish_low_risk and settings.auto_publish_enabled:
+            images = db.query(Image).filter(Image.article_id == article.id).all()
+            response = PublishingService().publish_article(article, version, images)
+            remote_post = response["post"]
+            article.cms_post_id = str(remote_post["id"])
+            article.published_url = remote_post.get("link")
+            article.status = "published"
     db.commit()
     db.refresh(article)
     return article
@@ -591,6 +611,16 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
     report = _run_quality_check_for_article(db, article)
+    risk_tier = report.get("risk_tier", RiskTierService().classify(topic.working_title, topic.target_query, draft["content_markdown"]))
+    fast_lane = RiskTierService().fast_lane_eligible(risk_tier, report)
+    if fast_lane and settings.auto_approve_low_risk:
+        article.status = "approved"
+        if settings.auto_publish_low_risk and settings.auto_publish_enabled:
+            response = PublishingService().publish_article(article, version, image_rows)
+            remote_post = response["post"]
+            article.cms_post_id = str(remote_post["id"])
+            article.published_url = remote_post.get("link")
+            article.status = "published"
     db.commit()
     return report
 

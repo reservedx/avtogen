@@ -30,13 +30,19 @@ class QualityGateService:
         faq_count: int,
         research_pack: dict | None = None,
         brief: dict | None = None,
+        risk_tier: str = "medium",
     ) -> dict:
         blockers: list[dict] = []
         warnings: list[dict] = []
         quality_score = 100.0
         risk_score = 0.0
+        low_risk_fast_lane = settings.fast_publish_enabled and risk_tier == "low"
 
-        for section in ["## What is it?", "## FAQ", "## Conclusion", "## Sources"]:
+        required_sections = ["## What is it?", "## FAQ", "## Conclusion", "## Sources"]
+        blocker_sections = ["## What is it?", "## Sources"] if low_risk_fast_lane else required_sections
+        warning_sections = [section for section in required_sections if section not in blocker_sections]
+
+        for section in blocker_sections:
             if section not in markdown_content:
                 blockers.append(
                     {
@@ -47,6 +53,17 @@ class QualityGateService:
                 )
                 quality_score -= 12
 
+        for section in warning_sections:
+            if section not in markdown_content:
+                warnings.append(
+                    {
+                        "code": "missing_section_warning",
+                        "message": f"Missing recommended section: {section}",
+                        "severity": "warning",
+                    }
+                )
+                quality_score -= 6
+
         if len(markdown_content.split()) < 900:
             warnings.append(
                 {
@@ -55,7 +72,7 @@ class QualityGateService:
                     "severity": "warning",
                 }
             )
-            quality_score -= 15
+            quality_score -= 8 if low_risk_fast_lane else 15
 
         if source_count < settings.required_source_count:
             blockers.append(
@@ -137,15 +154,26 @@ class QualityGateService:
         if research_pack:
             coverage = self._source_coverage(markdown_content, research_pack)
             if coverage["blocker"]:
-                blockers.append(
-                    {
-                        "code": "source_coverage_weak",
-                        "message": coverage["message"],
-                        "severity": "blocker",
-                    }
-                )
-                quality_score -= 15
-                risk_score += 18
+                if low_risk_fast_lane:
+                    warnings.append(
+                        {
+                            "code": "source_coverage_weak",
+                            "message": coverage["message"],
+                            "severity": "warning",
+                        }
+                    )
+                    quality_score -= 8
+                    risk_score += 10
+                else:
+                    blockers.append(
+                        {
+                            "code": "source_coverage_weak",
+                            "message": coverage["message"],
+                            "severity": "blocker",
+                        }
+                    )
+                    quality_score -= 15
+                    risk_score += 18
             elif coverage["warning"]:
                 warnings.append(
                     {
@@ -158,7 +186,7 @@ class QualityGateService:
 
         if brief:
             missing_required = self._missing_required_sections(markdown_content, brief)
-            for item in missing_required:
+            for item in missing_required[: (2 if low_risk_fast_lane else 4)]:
                 warnings.append(
                     {
                         "code": "brief_section_gap",
@@ -171,6 +199,9 @@ class QualityGateService:
         status = QualityOverallStatus.passed.value
         if blockers:
             status = QualityOverallStatus.block.value
+        elif low_risk_fast_lane:
+            if quality_score < settings.fast_lane_min_quality_score or risk_score > settings.fast_lane_max_risk_score:
+                status = QualityOverallStatus.review.value
         elif warnings or risk_score > settings.max_risk_score_for_auto_publish:
             status = QualityOverallStatus.review.value
 
@@ -178,6 +209,8 @@ class QualityGateService:
             "overall_status": status,
             "quality_score": max(0, quality_score),
             "risk_score": min(100, risk_score),
+            "risk_tier": risk_tier,
+            "fast_lane_eligible": low_risk_fast_lane and not blockers and quality_score >= settings.fast_lane_min_quality_score and risk_score <= settings.fast_lane_max_risk_score,
             "blockers": blockers,
             "warnings": warnings,
             "recommended_actions": self._recommended_actions(blockers, warnings, risk_score),

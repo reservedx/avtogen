@@ -19,6 +19,9 @@ type Settings = {
   openai_enabled: boolean;
   use_stub_generation: boolean;
   auto_publish_enabled: boolean;
+  fast_publish_enabled: boolean;
+  auto_approve_low_risk: boolean;
+  auto_publish_low_risk: boolean;
 };
 
 type CountBucket = {
@@ -118,6 +121,9 @@ function fallbackData(): DashboardData {
       openai_enabled: false,
       use_stub_generation: true,
       auto_publish_enabled: false,
+      fast_publish_enabled: true,
+      auto_approve_low_risk: true,
+      auto_publish_low_risk: false,
     },
     analytics: {
       article_status_counts: [

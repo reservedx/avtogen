@@ -249,6 +249,16 @@ When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` w
 - save files under `data/generated_assets/<article-slug>/`
 - optionally upload them to S3-compatible storage and store remote URLs
 - gracefully fall back to local prompt-only image records if binary generation fails
+
+## Fast Publish Mode
+
+The project now supports a faster publication lane for low-risk informational topics.
+
+- `FAST_PUBLISH_ENABLED=true` enables relaxed low-risk QA behavior
+- `AUTO_APPROVE_LOW_RISK=true` allows eligible low-risk drafts to move directly to `approved`
+- `AUTO_PUBLISH_LOW_RISK=true` can publish approved low-risk drafts automatically when CMS publishing is configured
+
+High-risk topics still stay out of the fast lane. Content about treatment, diagnosis, dosage, prescriptions, pregnancy risk, or stronger medical advice should continue to require manual review.
 ## Tests
 
 ```bash
