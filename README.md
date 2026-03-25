@@ -112,6 +112,7 @@ Implemented in scaffold form:
 - `POST /api/v1/topics/{id}/collect-sources`
 - `GET /api/v1/topics/{id}/sources`
 - `POST /api/v1/topics/{id}/sources/manual`
+- `POST /api/v1/topics/bulk-fast-lane`
 - `GET /api/v1/launch-readiness`
 - `POST /api/v1/topics/{id}/generate-brief`
 - `GET /api/v1/topics/{id}/briefs`

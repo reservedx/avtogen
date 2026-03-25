@@ -48,3 +48,13 @@ export async function createDemoProjectAction(): Promise<void> {
   });
   revalidatePath("/");
 }
+
+export async function runBulkFastLaneTopicsAction(topicIds: string[]): Promise<void> {
+  if (!topicIds.length) {
+    return;
+  }
+  await postApiJson("/topics/bulk-fast-lane", {
+    topic_ids: topicIds,
+  });
+  revalidatePath("/");
+}

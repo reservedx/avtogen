@@ -35,6 +35,23 @@ class BulkArticleActionResponse(BaseModel):
     results: list[BulkActionResult]
 
 
+class BulkTopicFastLaneRequest(BaseModel):
+    topic_ids: list[str]
+
+
+class BulkTopicActionResult(BaseModel):
+    topic_id: str
+    status: str
+    article_id: str | None = None
+    detail: str | None = None
+
+
+class BulkTopicFastLaneResponse(BaseModel):
+    requested: int
+    completed: int
+    results: list[BulkTopicActionResult]
+
+
 class DemoBootstrapRequest(BaseModel):
     topic_query: str = "frequent urination with cystitis"
     audience: str = "general audience"

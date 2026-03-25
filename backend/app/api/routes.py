@@ -13,7 +13,7 @@ from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
-from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
+from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
 
 router = APIRouter()
@@ -85,6 +85,104 @@ def _run_quality_check_for_article(db: Session, article: Article) -> dict:
     article.risk_score = report["risk_score"]
     db.add(row)
     return report
+
+
+def _research_pack_for_topic(db: Session, topic: ContentTopic) -> tuple[dict, list[Source]]:
+    topic_sources = db.query(Source).filter(Source.topic_id == topic.id).order_by(Source.created_at.asc()).all()
+    source_rows = [
+        {
+            "source_type": source.source_type,
+            "url": source.url,
+            "title": source.title,
+            "reliability_score": source.reliability_score,
+            "summary": source.cleaned_content or source.raw_content or "",
+            "published_at": source.published_at,
+        }
+        for source in topic_sources
+    ]
+    research_pack = ResearchPackBuilder().build(
+        topic.working_title,
+        topic.target_query,
+        topic.audience,
+        "informational",
+        source_rows,
+        _fact_rows(db, topic.id),
+    )
+    return research_pack, topic_sources
+
+
+def _ensure_topic_sources(db: Session, topic: ContentTopic) -> list[Source]:
+    existing = db.query(Source).filter(Source.topic_id == topic.id).all()
+    if existing:
+        return existing
+    providers = [YouTubeTranscriptProvider(), ManualSourceProvider()]
+    collected: list[dict] = []
+    for provider in providers:
+        collected.extend(provider.collect(topic.target_query))
+    existing_urls: set[str] = set()
+    for item in collected:
+        if item["url"] in existing_urls:
+            continue
+        existing_urls.add(item["url"])
+        db.add(Source(topic_id=topic.id, **item))
+    db.flush()
+    topic_sources = db.query(Source).filter(Source.topic_id == topic.id).all()
+    ResearchNoteExtractor().extract_for_topic(db, topic.id, topic_sources)
+    db.flush()
+    return topic_sources
+
+
+def _apply_fast_lane_outcome(
+    db: Session,
+    article: Article,
+    version: ArticleVersion,
+    topic: ContentTopic,
+    report: dict,
+    images: list[Image] | None = None,
+) -> None:
+    risk_tier = report.get("risk_tier", RiskTierService().classify(topic.working_title, topic.target_query, version.content_markdown))
+    fast_lane = RiskTierService().fast_lane_eligible(risk_tier, report)
+    if fast_lane and settings.auto_approve_low_risk:
+        article.status = "approved"
+        if settings.auto_publish_low_risk and settings.auto_publish_enabled:
+            publish_images = images if images is not None else db.query(Image).filter(Image.article_id == article.id).all()
+            response = PublishingService().publish_article(article, version, publish_images)
+            remote_post = response["post"]
+            article.cms_post_id = str(remote_post["id"])
+            article.published_url = remote_post.get("link")
+            article.status = "published"
+
+
+def _create_article_for_topic(db: Session, topic: ContentTopic, brief: Brief, research_pack: dict) -> tuple[Article, ArticleVersion]:
+    gateway = OpenAIGateway()
+    draft_generator = DraftGenerator()
+    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(brief.brief_json, research_pack)
+    article = Article(topic_id=topic.id, brief_id=brief.id, title=draft["title"], slug=draft["slug"], status="draft")
+    db.add(article)
+    db.flush()
+    version = ArticleVersion(
+        article_id=article.id,
+        version=1,
+        content_markdown=draft["content_markdown"],
+        content_html=draft["content_html"],
+        excerpt=draft["excerpt"],
+        meta_title=draft["meta_title"],
+        meta_description=draft["meta_description"],
+        faq_json=draft["faq_json"],
+        schema_json=draft["schema_json"],
+        word_count=len(draft["content_markdown"].split()),
+        created_by="system",
+        generation_context={
+            "brief_id": str(brief.id),
+            "generation_mode": "openai" if gateway.enabled else "stub",
+            "image_prompts": draft["image_prompts"],
+            "alt_texts": draft["alt_texts"],
+        },
+    )
+    db.add(version)
+    db.flush()
+    article.current_version_id = version.id
+    return article, version
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
@@ -354,29 +452,63 @@ def list_research_notes(topic_id: UUID, db: Session = Depends(get_db)) -> list[R
     return db.query(ResearchNote).filter(ResearchNote.topic_id == topic_id).order_by(ResearchNote.created_at.asc()).all()
 
 
+@router.post("/topics/bulk-fast-lane", response_model=BulkTopicFastLaneResponse)
+def bulk_fast_lane_topics(payload: BulkTopicFastLaneRequest, db: Session = Depends(get_db)) -> BulkTopicFastLaneResponse:
+    topic_ids = [item.strip() for item in payload.topic_ids if item.strip()]
+    if not topic_ids:
+        raise HTTPException(status_code=400, detail="At least one topic_id is required")
+    results: list[BulkTopicActionResult] = []
+    completed = 0
+    for topic_id in topic_ids[:50]:
+        try:
+            topic = db.get(ContentTopic, UUID(topic_id))
+        except ValueError:
+            topic = None
+        if not topic:
+            results.append(BulkTopicActionResult(topic_id=topic_id, status="skipped", detail="Topic not found"))
+            continue
+        try:
+            _ensure_topic_sources(db, topic)
+            brief = db.query(Brief).filter(Brief.topic_id == topic.id).order_by(Brief.version.desc()).first()
+            if not brief:
+                research_pack, _ = _research_pack_for_topic(db, topic)
+                generator = BriefGenerator()
+                gateway = OpenAIGateway()
+                brief_payload = gateway.generate_brief_json(research_pack) or generator.generate(research_pack)
+                brief = Brief(
+                    topic_id=topic.id,
+                    version=db.query(Brief).filter(Brief.topic_id == topic.id).count() + 1,
+                    brief_json=brief_payload,
+                    prompt_snapshot=generator.prompt_snapshot(research_pack),
+                    model_name=settings.openai_brief_model if gateway.enabled else "stub",
+                )
+                db.add(brief)
+                db.flush()
+            research_pack, _ = _research_pack_for_topic(db, topic)
+            article, version = _create_article_for_topic(db, topic, brief, research_pack)
+            report = _run_quality_check_for_article(db, article)
+            _apply_fast_lane_outcome(db, article, version, topic, report)
+            completed += 1
+            results.append(
+                BulkTopicActionResult(
+                    topic_id=topic_id,
+                    article_id=str(article.id),
+                    status=article.status,
+                    detail=f"risk_tier={report.get('risk_tier')} fast_lane={report.get('fast_lane_eligible')}",
+                )
+            )
+        except Exception as exc:
+            results.append(BulkTopicActionResult(topic_id=topic_id, status="failed", detail=str(exc)))
+    db.commit()
+    return BulkTopicFastLaneResponse(requested=len(topic_ids[:50]), completed=completed, results=results)
+
+
 @router.post("/topics/{topic_id}/generate-brief")
 def generate_brief(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
-    source_rows = [
-        {
-            "source_type": source.source_type,
-            "url": source.url,
-            "title": source.title,
-            "reliability_score": source.reliability_score,
-            "summary": source.cleaned_content or source.raw_content or "",
-        }
-        for source in db.query(Source).filter(Source.topic_id == topic.id).all()
-    ]
-    research_pack = ResearchPackBuilder().build(
-        topic.working_title,
-        topic.target_query,
-        topic.audience,
-        "informational",
-        source_rows,
-        _fact_rows(db, topic.id),
-    )
+    research_pack, _ = _research_pack_for_topic(db, topic)
     gateway = OpenAIGateway()
     generator = BriefGenerator()
     brief_payload = gateway.generate_brief_json(research_pack) or generator.generate(research_pack)
@@ -406,63 +538,10 @@ def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
     brief = db.query(Brief).filter(Brief.topic_id == topic.id).order_by(Brief.version.desc()).first()
     if not brief:
         raise HTTPException(status_code=400, detail="Brief required before draft generation")
-    sources = [
-        {
-            "url": source.url,
-            "title": source.title,
-            "source_type": source.source_type,
-            "summary": source.cleaned_content or source.raw_content or "",
-        }
-        for source in db.query(Source).filter(Source.topic_id == topic.id).all()
-    ]
-    research_pack = ResearchPackBuilder().build(
-        topic.working_title,
-        topic.target_query,
-        topic.audience,
-        "informational",
-        sources,
-        _fact_rows(db, topic.id),
-    )
-    gateway = OpenAIGateway()
-    draft_generator = DraftGenerator()
-    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(brief.brief_json, research_pack)
-    article = Article(topic_id=topic.id, brief_id=brief.id, title=draft["title"], slug=draft["slug"], status="draft")
-    db.add(article)
-    db.flush()
-    version = ArticleVersion(
-        article_id=article.id,
-        version=1,
-        content_markdown=draft["content_markdown"],
-        content_html=draft["content_html"],
-        excerpt=draft["excerpt"],
-        meta_title=draft["meta_title"],
-        meta_description=draft["meta_description"],
-        faq_json=draft["faq_json"],
-        schema_json=draft["schema_json"],
-        word_count=len(draft["content_markdown"].split()),
-        created_by="system",
-        generation_context={
-            "brief_id": str(brief.id),
-            "generation_mode": "openai" if gateway.enabled else "stub",
-            "image_prompts": draft["image_prompts"],
-            "alt_texts": draft["alt_texts"],
-        },
-    )
-    db.add(version)
-    db.flush()
-    article.current_version_id = version.id
+    research_pack, _ = _research_pack_for_topic(db, topic)
+    article, version = _create_article_for_topic(db, topic, brief, research_pack)
     report = _run_quality_check_for_article(db, article)
-    risk_tier = report.get("risk_tier", RiskTierService().classify(topic.working_title, topic.target_query, draft["content_markdown"]))
-    fast_lane = RiskTierService().fast_lane_eligible(risk_tier, report)
-    if fast_lane and settings.auto_approve_low_risk:
-        article.status = "approved"
-        if settings.auto_publish_low_risk and settings.auto_publish_enabled:
-            images = db.query(Image).filter(Image.article_id == article.id).all()
-            response = PublishingService().publish_article(article, version, images)
-            remote_post = response["post"]
-            article.cms_post_id = str(remote_post["id"])
-            article.published_url = remote_post.get("link")
-            article.status = "published"
+    _apply_fast_lane_outcome(db, article, version, topic, report)
     db.commit()
     db.refresh(article)
     return article

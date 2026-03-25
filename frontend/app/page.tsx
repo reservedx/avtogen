@@ -5,6 +5,7 @@ import {
   bulkPublishAction,
   bulkSubmitForReviewAction,
   createDemoProjectAction,
+  runBulkFastLaneTopicsAction,
   runBulkQualityCheckAction,
 } from "./actions";
 import { getDashboardData } from "./lib/dashboard";
@@ -59,6 +60,7 @@ export default async function HomePage() {
   const leadArticle = reviewQueue[0] ?? data.articles[0];
   const reviewQueueIds = reviewQueue.map((article) => article.id);
   const approvedArticleIds = data.articles.filter((article) => article.status === "approved").map((article) => article.id);
+  const topicQueueIds = data.topics.filter((topic) => topic.status !== "published").slice(0, 12).map((topic) => topic.id);
 
   return (
     <main className="page-shell">
@@ -201,6 +203,23 @@ export default async function HomePage() {
                   <span className="muted">{article.slug}</span>
                 </article>
               ))}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Fast Lane</p>
+                <h2>Массовый прогон тем</h2>
+              </div>
+            </div>
+            <p className="muted">
+              Быстрый режим сам собирает источники, создает ТЗ и черновик, запускает QA и двигает low-risk темы дальше по конвейеру.
+            </p>
+            <div className="top-gap">
+              <form action={runBulkFastLaneTopicsAction.bind(null, topicQueueIds)}>
+                <button className="action-button accent-button" type="submit">Запустить fast lane по очереди тем</button>
+              </form>
             </div>
           </article>
 
