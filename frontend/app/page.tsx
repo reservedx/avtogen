@@ -13,16 +13,10 @@ import {
 import { getDashboardData } from "./lib/dashboard";
 
 function statusTone(status: string): string {
-  if (status === "published" || status === "completed" || status === "approved") {
+  if (status === "published" || status === "completed" || status === "approved" || status === "ready") {
     return "success";
   }
-  if (status === "ready") {
-    return "success";
-  }
-  if (status === "warning") {
-    return "warn";
-  }
-  if (status === "needs_revision" || status === "failed") {
+  if (status === "needs_revision" || status === "failed" || status === "rejected") {
     return "danger";
   }
   return "warn";
@@ -30,52 +24,57 @@ function statusTone(status: string): string {
 
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
-    published: "опубликовано",
-    completed: "выполнено",
-    approved: "одобрено",
-    ready: "готово",
-    warning: "внимание",
-    needs_revision: "нужна доработка",
-    failed: "ошибка",
-    in_review: "на ревью",
-    rejected: "отклонено",
-    draft: "черновик",
-    running: "в работе",
-    pending: "в ожидании",
-    planned: "запланировано",
+    published: "Опубликовано",
+    completed: "Выполнено",
+    approved: "Одобрено",
+    ready: "Готово",
+    warning: "Внимание",
+    needs_revision: "Нужна доработка",
+    failed: "Ошибка",
+    in_review: "На ревью",
+    rejected: "Отклонено",
+    draft: "Черновик",
+    running: "В работе",
+    pending: "В ожидании",
+    planned: "Запланировано",
+    generated: "Сгенерировано",
+    needs_regeneration: "Нужна перегенерация",
   };
   return labels[status] ?? status;
 }
 
 function scoreLabel(value: number | null, kind: "quality" | "risk"): string {
   if (value === null) {
-    return kind === "quality" ? "QA еще не запускался" : "Риск не определен";
+    return kind === "quality" ? "QA ещё не запускался" : "Риск ещё не определён";
   }
-  return `${kind === "quality" ? "Качество" : "Риск"} ${value}/100`;
+  return `${kind === "quality" ? "Качество" : "Риск"}: ${value}/100`;
 }
 
 export default async function HomePage() {
   const data = await getDashboardData();
-  const reviewQueue = data.articles.filter((article) => article.status !== "published").slice(0, 4);
-  const published = data.articles.filter((article) => article.status === "published").slice(0, 3);
-  const failedJobs = data.taskRuns.filter((task) => task.status === "failed").slice(0, 4);
+  const reviewQueue = data.articles.filter((article) => article.status !== "published").slice(0, 6);
+  const published = data.articles.filter((article) => article.status === "published").slice(0, 4);
+  const failedJobs = data.taskRuns.filter((task) => task.status === "failed").slice(0, 5);
+  const pendingImages = data.imageReviewQueue.slice(0, 8);
   const leadArticle = reviewQueue[0] ?? data.articles[0];
   const reviewQueueIds = reviewQueue.map((article) => article.id);
   const approvedArticleIds = data.articles.filter((article) => article.status === "approved").map((article) => article.id);
-  const topicQueueIds = data.topics.filter((topic) => topic.status !== "published").slice(0, 12).map((topic) => topic.id);
+  const topicQueueIds = data.topics.filter((topic) => topic.status !== "published").slice(0, 20).map((topic) => topic.id);
 
   return (
     <main className="page-shell">
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Редакторский центр</p>
-          <h1>Публикация материалов о женском здоровье через обязательное ревью.</h1>
+          <h1>Быстрый конвейер статей с обязательной модерацией изображений</h1>
           <p className="hero-text">
-            В админке в одном месте собраны рискованные черновики, сигналы качества, режим хранения и готовность к публикации.
-            Интерфейс заточен под YMYL-сценарий, где важнее точность и редакторский контроль, чем скорость автогенерации.
+            Платформа собирает темы, прогоняет их по fast lane, создаёт черновики и готовит публикацию.
+            Текст может идти по ускоренному маршруту, но изображения всегда требуют ручного одобрения перед отправкой в CMS.
           </p>
           <form action={createDemoProjectAction} className="hero-action">
-            <button className="action-button accent-button hero-button" type="submit">Создать демо-проект</button>
+            <button className="action-button accent-button hero-button" type="submit">
+              Создать демо-проект
+            </button>
           </form>
         </div>
         <div className="hero-status">
@@ -103,8 +102,8 @@ export default async function HomePage() {
           <strong>{data.metrics.published_articles_count}</strong>
         </article>
         <article className="metric-card">
-          <span>Запусков задач</span>
-          <strong>{data.metrics.task_runs_count}</strong>
+          <span>Картинок на ревью</span>
+          <strong>{data.imageReviewQueue.length}</strong>
         </article>
       </section>
 
@@ -122,8 +121,8 @@ export default async function HomePage() {
           <strong>{data.analytics.source_type_counts[0]?.key ?? "n/a"}</strong>
         </article>
         <article className="metric-card">
-          <span>Главная ошибка</span>
-          <strong>{data.analytics.failed_task_counts[0]?.key ?? "нет"}</strong>
+          <span>Упавшие задачи</span>
+          <strong>{failedJobs.length}</strong>
         </article>
       </section>
 
@@ -133,7 +132,7 @@ export default async function HomePage() {
             <div className="panel-head">
               <div>
                 <p className="panel-label">Главная статья</p>
-                <h2>{leadArticle?.title ?? "Статей пока нет"}</h2>
+                <h2>{leadArticle?.title ?? "Пока нет статей"}</h2>
               </div>
               {leadArticle ? <div className={`badge ${statusTone(leadArticle.status)}`}>{statusLabel(leadArticle.status)}</div> : null}
             </div>
@@ -146,70 +145,112 @@ export default async function HomePage() {
                   <p className="muted">
                     {data.leadWorkspace?.current_version
                       ? `Версия ${data.leadWorkspace.current_version.version}, ${data.leadWorkspace.current_version.word_count} слов`
-                      : "Метаданные версии пока отсутствуют"}
+                      : "Версия ещё не сформирована"}
                   </p>
-                  <p className="muted">Slug: {leadArticle.slug}</p>
                 </div>
                 <div className="story-card">
                   <span className="kicker">Публикация</span>
-                  <p>{leadArticle.cms_post_id ? `Пост в CMS #${leadArticle.cms_post_id}` : "Еще не синхронизировано с CMS"}</p>
+                  <p>{leadArticle.cms_post_id ? `Пост в CMS #${leadArticle.cms_post_id}` : "Ещё не синхронизировано с CMS"}</p>
                   <p className="muted">
                     {data.leadWorkspace
-                      ? `${data.leadWorkspace.images.length} изображений, ${data.leadWorkspace.editorial_reviews.length} ревью, задача ${statusLabel(data.leadWorkspace.publishing_job?.status ?? "pending")}`
+                      ? `${data.leadWorkspace.images.length} изображений, ${data.leadWorkspace.editorial_reviews.length} ревью`
                       : "Детали рабочего пространства недоступны"}
                   </p>
-                  <p className="muted">
-                    {leadArticle.published_url ? leadArticle.published_url : "Ожидает одобрения и шага публикации."}
-                  </p>
+                  <p className="muted">{leadArticle.published_url ?? "Ожидает QA, одобрения и публикации."}</p>
                 </div>
               </div>
             ) : (
-              <p className="muted">Создай тему через API или используй демо-кнопку выше, чтобы наполнить очередь.</p>
+              <p className="muted">Создай демо-проект или импортируй темы списком, чтобы наполнить очередь.</p>
             )}
           </article>
 
           <article className="panel">
             <div className="panel-head">
               <div>
-                <p className="panel-label">Очередь ревью</p>
-                <h2>Статьи, требующие внимания редактора</h2>
+                <p className="panel-label">Очередь статей</p>
+                <h2>Материалы, требующие внимания</h2>
               </div>
             </div>
             <div className="action-columns top-gap">
               <form action={runBulkQualityCheckAction.bind(null, reviewQueueIds)}>
-                <button className="action-button" type="submit">Запустить QA по очереди</button>
+                <button className="action-button" type="submit">
+                  Запустить QA по очереди
+                </button>
               </form>
               <form action={bulkSubmitForReviewAction.bind(null, reviewQueueIds)}>
-                <button className="action-button accent-button" type="submit">Отправить очередь на ревью</button>
+                <button className="action-button" type="submit">
+                  Отправить очередь на ревью
+                </button>
               </form>
             </div>
             <div className="action-columns top-gap">
               <form action={bulkGenerateImagesAction.bind(null, reviewQueueIds)}>
-                <button className="action-button" type="submit">Сгенерировать изображения</button>
+                <button className="action-button" type="submit">
+                  Сгенерировать изображения
+                </button>
               </form>
               <form action={bulkApproveAction.bind(null, reviewQueueIds)}>
-                <button className="action-button" type="submit">Одобрить очередь</button>
+                <button className="action-button" type="submit">
+                  Одобрить очередь
+                </button>
               </form>
             </div>
             <div className="action-columns top-gap">
               <form action={bulkPublishAction.bind(null, approvedArticleIds)}>
-                <button className="action-button accent-button" type="submit">Опубликовать одобренные</button>
+                <button className="action-button accent-button" type="submit">
+                  Опубликовать одобренные
+                </button>
               </form>
             </div>
             <div className="stack">
-              {reviewQueue.map((article) => (
-                <article className="queue-item" key={article.id}>
-                  <div className="queue-header">
-                    <strong>
-                      <Link href={`/articles/${article.id}`}>{article.title}</Link>
-                    </strong>
-                    <div className={`badge ${statusTone(article.status)}`}>{statusLabel(article.status)}</div>
-                  </div>
-                  <p>{scoreLabel(article.quality_score, "quality")}</p>
-                  <p>{scoreLabel(article.risk_score, "risk")}</p>
-                  <span className="muted">{article.slug}</span>
-                </article>
-              ))}
+              {reviewQueue.length ? (
+                reviewQueue.map((article) => (
+                  <article className="queue-item" key={article.id}>
+                    <div className="queue-header">
+                      <strong>
+                        <Link href={`/articles/${article.id}`}>{article.title}</Link>
+                      </strong>
+                      <div className={`badge ${statusTone(article.status)}`}>{statusLabel(article.status)}</div>
+                    </div>
+                    <p>{scoreLabel(article.quality_score, "quality")}</p>
+                    <p>{scoreLabel(article.risk_score, "risk")}</p>
+                    <p className="muted">{article.slug}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Очередь статей пока пуста.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Очередь изображений</p>
+                <h2>Обязательная ручная модерация</h2>
+              </div>
+            </div>
+            <p className="muted">
+              Эти изображения не дадут статье уйти в публикацию, пока редактор не одобрит их или не отправит на перегенерацию.
+            </p>
+            <div className="stack top-gap">
+              {pendingImages.length ? (
+                pendingImages.map((image) => (
+                  <article className="queue-item" key={image.id}>
+                    <div className="queue-header">
+                      <strong>
+                        <Link href={`/articles/${image.article_id}`}>{image.article_title}</Link>
+                      </strong>
+                      <div className={`badge ${statusTone(image.moderation_status)}`}>{statusLabel(image.moderation_status)}</div>
+                    </div>
+                    <p>{image.is_featured ? "Обложка" : "Встроенное изображение"}</p>
+                    <p className="muted">{image.alt_text}</p>
+                    <p className="muted">{image.moderation_notes ?? "Комментариев по модерации пока нет."}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Все изображения уже разобраны редактором.</p>
+              )}
             </div>
           </article>
 
@@ -221,11 +262,13 @@ export default async function HomePage() {
               </div>
             </div>
             <p className="muted">
-              Быстрый режим сам собирает источники, создает ТЗ и черновик, запускает QA и двигает low-risk темы дальше по конвейеру.
+              Быстрый режим собирает источники, создаёт brief и draft, запускает QA и двигает low-risk темы дальше по конвейеру.
             </p>
             <div className="top-gap">
               <form action={runBulkFastLaneTopicsAction.bind(null, topicQueueIds)}>
-                <button className="action-button accent-button" type="submit">Запустить fast lane по очереди тем</button>
+                <button className="action-button accent-button" type="submit">
+                  Запустить fast lane по очереди тем
+                </button>
               </form>
             </div>
           </article>
@@ -245,7 +288,9 @@ export default async function HomePage() {
                 placeholder={"Вставь темы по одной в строке\nчастое мочеиспускание без боли\nжжение при мочеиспускании у женщин\nниктурия у женщин"}
                 rows={8}
               />
-              <button className="action-button" type="submit">Импортировать темы</button>
+              <button className="action-button" type="submit">
+                Импортировать темы
+              </button>
             </form>
           </article>
 
@@ -253,7 +298,7 @@ export default async function HomePage() {
             <div className="panel-head">
               <div>
                 <p className="panel-label">Опубликованные</p>
-                <h2>Недавно опубликованные или связанные с CMS</h2>
+                <h2>Недавно синхронизированные статьи</h2>
               </div>
             </div>
             <div className="stack">
@@ -272,7 +317,7 @@ export default async function HomePage() {
                   </article>
                 ))
               ) : (
-                <p className="muted">Опубликованные статьи появятся здесь после синхронизации с WordPress.</p>
+                <p className="muted">Опубликованные статьи появятся здесь после отправки в WordPress.</p>
               )}
             </div>
           </article>
@@ -301,7 +346,7 @@ export default async function HomePage() {
               </div>
               <div>
                 <dt>Автопубликация</dt>
-                <dd>{data.settings.auto_publish_enabled ? "Включена" : "Только после ревью"}</dd>
+                <dd>{data.settings.auto_publish_enabled ? "Включена" : "Выключена"}</dd>
               </div>
               <div>
                 <dt>Fast publish</dt>
@@ -320,7 +365,7 @@ export default async function HomePage() {
 
           <article className="panel">
             <p className="panel-label">Готовность к запуску</p>
-            <h2>{data.readiness.overall_status === "ready" ? "Прототип готов к запуску" : "Нужно проверить еще несколько пунктов"}</h2>
+            <h2>{data.readiness.overall_status === "ready" ? "Прототип готов к запуску" : "Нужно проверить ещё несколько пунктов"}</h2>
             <p className="muted">{data.readiness.summary}</p>
             <div className="stack top-gap">
               {data.readiness.items.map((item) => (
@@ -337,7 +382,7 @@ export default async function HomePage() {
 
           <article className="panel">
             <p className="panel-label">Мониторинг задач</p>
-            <h2>Ошибки и рискованные запуски</h2>
+            <h2>Ошибки и рисковые запуски</h2>
             <div className="stack">
               {failedJobs.length ? (
                 failedJobs.map((task) => (
@@ -380,9 +425,9 @@ export default async function HomePage() {
 
           <article className="panel">
             <p className="panel-label">Темы</p>
-            <h2>Темы для кластерной работы</h2>
+            <h2>Текущая очередь кластеров</h2>
             <div className="stack">
-              {data.topics.slice(0, 4).map((topic) => (
+              {data.topics.slice(0, 6).map((topic) => (
                 <article className="topic-row" key={topic.id}>
                   <strong>
                     <Link href={`/topics/${topic.id}`}>{topic.working_title}</Link>

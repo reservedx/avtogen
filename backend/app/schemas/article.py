@@ -83,6 +83,20 @@ class ImageRead(ORMModel):
     created_at: datetime
 
 
+class ImageReviewQueueItemRead(ORMModel):
+    id: UUID
+    article_id: UUID
+    article_title: str
+    article_slug: str
+    alt_text: str
+    storage_url: str | None
+    local_path: str | None
+    is_featured: bool
+    moderation_status: str
+    moderation_notes: str | None
+    created_at: datetime
+
+
 class EditorialReviewRead(ORMModel):
     id: UUID
     article_id: UUID

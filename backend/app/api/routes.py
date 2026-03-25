@@ -8,7 +8,7 @@ from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ImageReviewQueueItemRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
@@ -755,6 +755,34 @@ def get_article(article_id: UUID, db: Session = Depends(get_db)) -> Article:
 @router.get("/articles", response_model=list[ArticleRead])
 def list_articles(db: Session = Depends(get_db)) -> list[Article]:
     return db.query(Article).order_by(Article.updated_at.desc()).all()
+
+
+@router.get("/images/review-queue", response_model=list[ImageReviewQueueItemRead])
+def image_review_queue(db: Session = Depends(get_db)) -> list[ImageReviewQueueItemRead]:
+    rows = (
+        db.query(Image, Article)
+        .join(Article, Article.id == Image.article_id)
+        .filter(Image.moderation_status.in_(["generated", "needs_regeneration", "rejected"]))
+        .order_by(Image.created_at.asc())
+        .limit(100)
+        .all()
+    )
+    return [
+        ImageReviewQueueItemRead(
+            id=image.id,
+            article_id=article.id,
+            article_title=article.title,
+            article_slug=article.slug,
+            alt_text=image.alt_text,
+            storage_url=image.storage_url,
+            local_path=image.local_path,
+            is_featured=image.is_featured,
+            moderation_status=image.moderation_status,
+            moderation_notes=image.moderation_notes,
+            created_at=image.created_at,
+        )
+        for image, article in rows
+    ]
 
 
 @router.get("/articles/{article_id}/workspace", response_model=ArticleWorkspaceRead)

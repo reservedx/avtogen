@@ -78,6 +78,20 @@ type ArticleWorkspace = {
   publishing_job: { status: string } | null;
 };
 
+type ImageReviewItem = {
+  id: string;
+  article_id: string;
+  article_title: string;
+  article_slug: string;
+  alt_text: string;
+  storage_url: string | null;
+  local_path: string | null;
+  is_featured: boolean;
+  moderation_status: string;
+  moderation_notes: string | null;
+  created_at: string;
+};
+
 type TaskRun = {
   id: string;
   task_type: string;
@@ -96,6 +110,7 @@ export type DashboardData = {
   topics: Topic[];
   articles: Article[];
   leadWorkspace: ArticleWorkspace | null;
+  imageReviewQueue: ImageReviewItem[];
   taskRuns: TaskRun[];
   apiOnline: boolean;
 };
@@ -219,6 +234,21 @@ function fallbackData(): DashboardData {
       editorial_reviews: [{ id: "rev-1", decision: "approved" }],
       publishing_job: { status: "queued" },
     },
+    imageReviewQueue: [
+      {
+        id: "img-1",
+        article_id: "mock-article-1",
+        article_title: "Frequent urination with cystitis",
+        article_slug: "frequent-urination-with-cystitis",
+        alt_text: "Neutral illustration of urinary symptoms",
+        storage_url: null,
+        local_path: "./data/generated_assets/frequent-urination-with-cystitis-1.webp",
+        is_featured: true,
+        moderation_status: "generated",
+        moderation_notes: null,
+        created_at: new Date().toISOString(),
+      },
+    ],
     taskRuns: [
       {
         id: "task-1",
@@ -243,7 +273,7 @@ function fallbackData(): DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [articles, metrics, settings, topics, taskRuns, analytics, readiness] = await Promise.all([
+  const [articles, metrics, settings, topics, taskRuns, analytics, readiness, imageReviewQueue] = await Promise.all([
     fetchApiJson<Article[]>("/articles"),
     fetchApiJson<Metrics>("/metrics"),
     fetchApiJson<Settings>("/settings"),
@@ -251,6 +281,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     fetchApiJson<TaskRun[]>("/task-runs"),
     fetchApiJson<AnalyticsSummary>("/analytics/summary"),
     fetchApiJson<LaunchReadiness>("/launch-readiness"),
+    fetchApiJson<ImageReviewItem[]>("/images/review-queue"),
   ]);
 
   if (!metrics || !settings) {
@@ -271,6 +302,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     topics: topics ?? [],
     articles: articleRows,
     leadWorkspace,
+    imageReviewQueue: imageReviewQueue ?? fallbackData().imageReviewQueue,
     taskRuns: taskRuns ?? [],
   };
 }
