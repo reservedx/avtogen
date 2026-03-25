@@ -104,6 +104,8 @@ Implemented in scaffold form:
 
 - `POST /api/v1/clusters`
 - `GET /api/v1/clusters`
+- `POST /api/v1/keywords`
+- `GET /api/v1/keywords`
 - `POST /api/v1/topics`
 - `GET /api/v1/topics`
 - `GET /api/v1/topics/{id}`

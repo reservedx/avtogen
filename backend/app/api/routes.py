@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
 from app.config import settings
-from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, PublishingJob, QualityReport, Source, TaskRun
+from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, Source, TaskRun
 from app.db.session import get_db
 from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
+from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
@@ -69,6 +70,26 @@ def create_cluster(payload: ClusterCreate, db: Session = Depends(get_db)) -> Clu
 @router.get("/clusters", response_model=list[ClusterRead])
 def list_clusters(db: Session = Depends(get_db)) -> list[Cluster]:
     return db.query(Cluster).order_by(Cluster.created_at.desc()).all()
+
+
+@router.post("/keywords", response_model=KeywordRead)
+def create_keyword(payload: KeywordCreate, db: Session = Depends(get_db)) -> Keyword:
+    cluster = db.get(Cluster, payload.cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    keyword = Keyword(**payload.model_dump())
+    db.add(keyword)
+    db.commit()
+    db.refresh(keyword)
+    return keyword
+
+
+@router.get("/keywords", response_model=list[KeywordRead])
+def list_keywords(cluster_id: UUID | None = None, db: Session = Depends(get_db)) -> list[Keyword]:
+    query = db.query(Keyword)
+    if cluster_id:
+        query = query.filter(Keyword.cluster_id == cluster_id)
+    return query.order_by(Keyword.priority.desc(), Keyword.created_at.desc()).all()
 
 
 @router.post("/topics", response_model=TopicRead)
