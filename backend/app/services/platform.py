@@ -7,6 +7,7 @@ from app.services.openai_gateway import OpenAIGateway
 from app.services.publishing import PublishingService
 from app.services.providers import ManualSourceProvider, WordPressAdapter, YouTubeTranscriptProvider
 from app.services.quality import QualityGateService
+from app.services.readiness import LaunchReadinessService
 from app.services.research import ResearchPackBuilder
 from app.services.review import ReviewWorkflowService
 from app.services.sections import ArticleSectionRegenerator
@@ -24,6 +25,7 @@ __all__ = [
     "OpenAIGateway",
     "PublishingService",
     "QualityGateService",
+    "LaunchReadinessService",
     "ResearchPackBuilder",
     "ReviewWorkflowService",
     "AssetStorageService",

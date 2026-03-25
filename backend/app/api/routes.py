@@ -11,10 +11,10 @@ from app.db.session import get_db
 from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
-from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
+from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
+from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -117,6 +117,17 @@ def get_metrics(db: Session = Depends(get_db)) -> MetricsRead:
         published_articles_count=db.query(Article).filter(Article.status == "published").count(),
         quality_reports_count=db.query(QualityReport).count(),
         task_runs_count=db.query(TaskRun).count(),
+    )
+
+
+@router.get("/launch-readiness", response_model=LaunchReadinessRead)
+def get_launch_readiness(db: Session = Depends(get_db)) -> LaunchReadinessRead:
+    return LaunchReadinessRead(
+        **LaunchReadinessService().evaluate(
+            topics_count=db.query(ContentTopic).count(),
+            articles_count=db.query(Article).count(),
+            published_articles_count=db.query(Article).filter(Article.status == "published").count(),
+        )
     )
 
 
@@ -290,6 +301,33 @@ def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
 @router.get("/topics/{topic_id}/sources", response_model=list[SourceRead])
 def list_sources(topic_id: UUID, db: Session = Depends(get_db)) -> list[Source]:
     return db.query(Source).filter(Source.topic_id == topic_id).all()
+
+
+@router.post("/topics/{topic_id}/sources/manual", response_model=SourceRead)
+def create_manual_source(topic_id: UUID, payload: ManualSourceCreate, db: Session = Depends(get_db)) -> Source:
+    topic = db.get(ContentTopic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    if db.query(Source).filter(Source.topic_id == topic_id, Source.url == str(payload.url)).first():
+        raise HTTPException(status_code=409, detail="Source with this URL already exists for the topic")
+    source = Source(
+        topic_id=topic.id,
+        source_type=payload.source_type,
+        url=str(payload.url),
+        title=payload.title,
+        author=payload.author,
+        published_at=payload.published_at,
+        raw_content=payload.raw_content,
+        cleaned_content=payload.cleaned_content or payload.raw_content,
+        reliability_score=payload.reliability_score,
+        ingestion_status=payload.ingestion_status,
+    )
+    db.add(source)
+    db.flush()
+    ResearchNoteExtractor().extract_for_topic(db, topic.id, [source])
+    db.commit()
+    db.refresh(source)
+    return source
 
 
 @router.post("/topics/{topic_id}/extract-research-notes", response_model=ResearchNoteExtractionResponse)

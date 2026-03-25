@@ -13,6 +13,12 @@ function statusTone(status: string): string {
   if (status === "published" || status === "completed" || status === "approved") {
     return "success";
   }
+  if (status === "ready") {
+    return "success";
+  }
+  if (status === "warning") {
+    return "warn";
+  }
   if (status === "needs_revision" || status === "failed") {
     return "danger";
   }
@@ -238,6 +244,23 @@ export default async function HomePage() {
                 <dd>{data.settings.database_is_sqlite ? "SQLite dev mode" : "External database"}</dd>
               </div>
             </dl>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Launch Readiness</p>
+            <h2>{data.readiness.overall_status === "ready" ? "Ready for prototype launch" : "Needs a few checks"}</h2>
+            <p className="muted">{data.readiness.summary}</p>
+            <div className="stack top-gap">
+              {data.readiness.items.map((item) => (
+                <article className="task-row" key={item.code}>
+                  <div className="queue-header">
+                    <strong>{item.label}</strong>
+                    <div className={`badge ${statusTone(item.status)}`}>{item.status}</div>
+                  </div>
+                  <p className="muted">{item.detail}</p>
+                </article>
+              ))}
+            </div>
           </article>
 
           <article className="panel">

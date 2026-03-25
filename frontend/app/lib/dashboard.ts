@@ -34,6 +34,17 @@ type AnalyticsSummary = {
   average_risk_score: number | null;
 };
 
+type LaunchReadiness = {
+  overall_status: string;
+  summary: string;
+  items: Array<{
+    code: string;
+    label: string;
+    status: string;
+    detail: string;
+  }>;
+};
+
 type Topic = {
   id: string;
   working_title: string;
@@ -78,6 +89,7 @@ export type DashboardData = {
   metrics: Metrics;
   settings: Settings;
   analytics: AnalyticsSummary;
+  readiness: LaunchReadiness;
   topics: Topic[];
   articles: Article[];
   leadWorkspace: ArticleWorkspace | null;
@@ -119,6 +131,30 @@ function fallbackData(): DashboardData {
       failed_task_counts: [{ key: "publish_article", count: 1 }],
       average_quality_score: 83,
       average_risk_score: 24,
+    },
+    readiness: {
+      overall_status: "needs_attention",
+      summary: "Prototype is usable without Semrush, but some launch checks still need attention.",
+      items: [
+        {
+          code: "medical_disclaimer",
+          label: "Medical disclaimer configured",
+          status: "ready",
+          detail: "Required medical disclaimer is already wired into generation and QA.",
+        },
+        {
+          code: "editorial_review_mode",
+          label: "Auto-publish disabled",
+          status: "ready",
+          detail: "Articles stay review-first before publishing.",
+        },
+        {
+          code: "database_mode",
+          label: "Production database mode",
+          status: "warning",
+          detail: "SQLite is fine for local prototype work, but production should use PostgreSQL.",
+        },
+      ],
     },
     topics: [
       {
@@ -201,13 +237,14 @@ function fallbackData(): DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [articles, metrics, settings, topics, taskRuns, analytics] = await Promise.all([
+  const [articles, metrics, settings, topics, taskRuns, analytics, readiness] = await Promise.all([
     fetchApiJson<Article[]>("/articles"),
     fetchApiJson<Metrics>("/metrics"),
     fetchApiJson<Settings>("/settings"),
     fetchApiJson<Topic[]>("/topics"),
     fetchApiJson<TaskRun[]>("/task-runs"),
     fetchApiJson<AnalyticsSummary>("/analytics/summary"),
+    fetchApiJson<LaunchReadiness>("/launch-readiness"),
   ]);
 
   if (!metrics || !settings) {
@@ -224,6 +261,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     metrics,
     settings,
     analytics: analytics ?? fallbackData().analytics,
+    readiness: readiness ?? fallbackData().readiness,
     topics: topics ?? [],
     articles: articleRows,
     leadWorkspace,

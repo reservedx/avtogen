@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { fetchApiJson } from "../../lib/api";
 import {
+  addManualSourceAction,
   collectSourcesAction,
   extractResearchNotesAction,
   generateBriefAction,
@@ -185,6 +186,19 @@ export default async function TopicWorkspacePage({
                 <h2>Ingested references</h2>
               </div>
             </div>
+            <form className="action-form topic-manual-source-form" action={addManualSourceAction.bind(null, id)}>
+              <h3>Add manual source</h3>
+              <input name="title" placeholder="Guideline title or article title" />
+              <input name="url" placeholder="https://example.com/source" />
+              <input name="author" placeholder="Author or organization" />
+              <input name="reliability_score" placeholder="0.8" defaultValue="0.8" />
+              <textarea
+                name="raw_content"
+                placeholder="Paste the source summary, important excerpt, or cleaned notes here"
+                rows={5}
+              />
+              <button className="action-button" type="submit">Add Manual Source</button>
+            </form>
             <div className="stack">
               {workspace.sources.map((source) => (
                 <article className="queue-item" key={source.id}>

@@ -111,6 +111,8 @@ Implemented in scaffold form:
 - `GET /api/v1/topics/{id}`
 - `POST /api/v1/topics/{id}/collect-sources`
 - `GET /api/v1/topics/{id}/sources`
+- `POST /api/v1/topics/{id}/sources/manual`
+- `GET /api/v1/launch-readiness`
 - `POST /api/v1/topics/{id}/generate-brief`
 - `GET /api/v1/topics/{id}/briefs`
 - `POST /api/v1/topics/{id}/generate-draft`
@@ -187,6 +189,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_demo.ps1
 ```
 
 This will create a demo cluster, topic, sources, research notes, brief, draft, images, and a quality report so you can immediately inspect the prototype in the admin UI.
+
+You can also operate the prototype without Semrush by:
+
+1. creating topics manually,
+2. collecting YouTube/manual sources,
+3. adding manual sources directly in the topic workspace,
+4. generating the brief and draft from the gathered research,
+5. using the launch-readiness panel on the dashboard to track setup gaps.
 
 ## Render Deployment
 
