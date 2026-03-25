@@ -219,7 +219,9 @@ export default async function HomePage() {
             <div className="stack">
               {data.topics.slice(0, 4).map((topic) => (
                 <article className="topic-row" key={topic.id}>
-                  <strong>{topic.working_title}</strong>
+                  <strong>
+                    <Link href={`/topics/${topic.id}`}>{topic.working_title}</Link>
+                  </strong>
                   <span className="muted">{topic.target_query}</span>
                   <div className={`badge ${statusTone(topic.status)}`}>{topic.status}</div>
                 </article>

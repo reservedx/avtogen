@@ -2,7 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { fetchApiJson } from "../../lib/api";
-import { approveArticleAction, publishArticleAction, regenerateSectionAction, rejectArticleAction, runQualityCheckAction, submitForReviewAction } from "./actions";
+import {
+  approveArticleAction,
+  publishArticleAction,
+  regenerateSectionAction,
+  rejectArticleAction,
+  runQualityCheckAction,
+  submitForReviewAction,
+} from "./actions";
+
+type IssueItem = {
+  code?: string;
+  message?: string;
+};
 
 type ArticleWorkspace = {
   article: {
@@ -16,6 +28,7 @@ type ArticleWorkspace = {
     published_url: string | null;
   };
   current_version: {
+    id: string;
     version: number;
     word_count: number;
     content_markdown: string;
@@ -29,6 +42,7 @@ type ArticleWorkspace = {
     created_at: string;
     created_by: string;
     generation_context: Record<string, unknown>;
+    content_markdown: string;
   }>;
   images: Array<{
     id: string;
@@ -42,8 +56,8 @@ type ArticleWorkspace = {
     risk_score: number;
     report_json: {
       overall_status?: string;
-      blockers?: string[];
-      warnings?: string[];
+      blockers?: IssueItem[];
+      warnings?: IssueItem[];
     };
   } | null;
   publishing_job: {
@@ -69,6 +83,10 @@ function tone(status: string): string {
   return "warn";
 }
 
+function issueLabel(item: IssueItem): string {
+  return item.message ?? item.code ?? "Issue";
+}
+
 export default async function ArticleWorkspacePage({
   params,
 }: {
@@ -83,6 +101,7 @@ export default async function ArticleWorkspacePage({
 
   const blockers = workspace.latest_quality_report?.report_json.blockers ?? [];
   const warnings = workspace.latest_quality_report?.report_json.warnings ?? [];
+  const previousVersion = workspace.versions.find((version) => version.id !== workspace.current_version?.id);
 
   return (
     <main className="page-shell">
@@ -165,6 +184,30 @@ export default async function ArticleWorkspacePage({
             <pre className="markdown-preview">
               {workspace.current_version?.content_markdown ?? "No content available"}
             </pre>
+            {workspace.current_version ? (
+              <div className="version-diff-grid">
+                <article className="diff-card">
+                  <p className="panel-label">Current version</p>
+                  <h3>v{workspace.current_version.version}</h3>
+                  <p className="muted">{workspace.current_version.word_count} words</p>
+                  <div className="content-snippet">
+                    {workspace.current_version.content_markdown.slice(0, 700)}
+                  </div>
+                </article>
+                <article className="diff-card">
+                  <p className="panel-label">Previous version</p>
+                  <h3>{previousVersion ? `v${previousVersion.version}` : "No previous version"}</h3>
+                  <p className="muted">
+                    {previousVersion ? `${previousVersion.word_count} words` : "Compare after another regeneration"}
+                  </p>
+                  <div className="content-snippet">
+                    {previousVersion?.content_markdown
+                      ? previousVersion.content_markdown.slice(0, 700)
+                      : "No previous markdown snapshot available in this workspace yet."}
+                  </div>
+                </article>
+              </div>
+            ) : null}
           </article>
 
           <article className="panel">
@@ -183,6 +226,7 @@ export default async function ArticleWorkspacePage({
                   </div>
                   <p>{version.word_count} words</p>
                   <p className="muted">{new Date(version.created_at).toLocaleString()}</p>
+                  <p className="muted">{JSON.stringify(version.generation_context)}</p>
                 </article>
               ))}
             </div>
@@ -222,13 +266,13 @@ export default async function ArticleWorkspacePage({
             <div className="top-gap">
               <p className="panel-label">Blockers</p>
               <div className="stack">
-                {blockers.length ? blockers.map((item) => <div className="mini-chip danger-chip" key={item}>{item}</div>) : <p className="muted">No blockers</p>}
+                {blockers.length ? blockers.map((item) => <div className="mini-chip danger-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">No blockers</p>}
               </div>
             </div>
             <div className="top-gap">
               <p className="panel-label">Warnings</p>
               <div className="stack">
-                {warnings.length ? warnings.map((item) => <div className="mini-chip warn-chip" key={item}>{item}</div>) : <p className="muted">No warnings</p>}
+                {warnings.length ? warnings.map((item) => <div className="mini-chip warn-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">No warnings</p>}
               </div>
             </div>
           </article>

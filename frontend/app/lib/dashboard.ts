@@ -1,3 +1,5 @@
+import { fetchApiJson } from "./api";
+
 type Metrics = {
   clusters_count: number;
   topics_count: number;
@@ -213,4 +215,3 @@ function deriveArticlesFromTopics(topics: Topic[]): Article[] {
     published_url: topic.status === "published" ? `https://example.com/${topic.id}` : null,
   }));
 }
-import { fetchApiJson } from "./api";
