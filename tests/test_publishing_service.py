@@ -47,7 +47,7 @@ class _FakeWordPressAdapter:
 
 
 def _build_image(path: Path, is_featured: bool) -> Image:
-    path.write_bytes(b"png-data")
+    path.write_bytes(b"image-data")
     return Image(
         id=uuid4(),
         article_id=uuid4(),
@@ -80,13 +80,14 @@ def test_publishing_service_creates_post_and_uploads_featured_media(tmp_path) ->
         created_by="system",
         generation_context={},
     )
-    featured = _build_image(tmp_path / "featured.png", True)
-    inline = _build_image(tmp_path / "inline.png", False)
+    featured = _build_image(tmp_path / "featured.webp", True)
+    inline = _build_image(tmp_path / "inline.webp", False)
 
     result = service.publish_article(article, version, [featured, inline])
 
     assert adapter.created_payloads
     assert len(adapter.uploaded_files) == 2
+    assert adapter.uploaded_files[0][2] == "image/webp"
     assert adapter.featured_calls == [("101", "501")]
     assert adapter.meta_calls[0][1]["meta_title"] == "Meta title"
     assert adapter.schema_calls[0][1] == {"@type": "Article"}
@@ -120,7 +121,7 @@ def test_publishing_service_updates_existing_remote_post(tmp_path) -> None:
         created_by="system",
         generation_context={},
     )
-    featured = _build_image(tmp_path / "featured.png", True)
+    featured = _build_image(tmp_path / "featured.webp", True)
 
     service.publish_article(article, version, [featured])
 

@@ -37,8 +37,15 @@ class AssetStorageService:
             )
         return self._s3_client
 
-    def persist_image(self, article_slug: str, image_role: str, image_bytes: bytes) -> tuple[str, str]:
-        local_path = self._write_local(article_slug, image_role, image_bytes)
+    def persist_image(
+        self,
+        article_slug: str,
+        image_role: str,
+        image_bytes: bytes,
+        extension: str = "webp",
+        content_type: str = "image/webp",
+    ) -> tuple[str, str]:
+        local_path = self._write_local(article_slug, image_role, image_bytes, extension=extension)
         local_url = Path(local_path).resolve().as_uri()
         if not self.s3_enabled:
             return local_path, local_url
@@ -49,16 +56,17 @@ class AssetStorageService:
                 Bucket=self.bucket,
                 Key=key,
                 Body=image_bytes,
-                ContentType="image/png",
+                ContentType=content_type,
             )
             return local_path, self._public_url(key)
         except Exception:
             return local_path, local_url
 
-    def _write_local(self, article_slug: str, image_role: str, image_bytes: bytes) -> str:
+    def _write_local(self, article_slug: str, image_role: str, image_bytes: bytes, extension: str = "webp") -> str:
         article_dir = self.output_dir / article_slug
         article_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{image_role}-{uuid4().hex[:10]}.png"
+        normalized_extension = extension.lstrip(".")
+        filename = f"{image_role}-{uuid4().hex[:10]}.{normalized_extension}"
         path = article_dir / filename
         path.write_bytes(image_bytes)
         return str(path.resolve())

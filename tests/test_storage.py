@@ -23,6 +23,7 @@ def test_asset_storage_service_persists_local_file(tmp_path) -> None:
     service = AssetStorageService(backend="local", output_dir=tmp_path)
     local_path, storage_url = service.persist_image("sample-article", "featured", b"image-bytes")
     assert Path(local_path).exists()
+    assert local_path.endswith(".webp")
     assert storage_url.startswith("file:///")
 
 
@@ -30,5 +31,5 @@ def test_asset_storage_service_uploads_to_s3_and_returns_remote_url(tmp_path) ->
     service = AssetStorageService(backend="s3", output_dir=tmp_path, s3_client=_FakeS3Client())
     local_path, storage_url = service.persist_image("sample-article", "featured", b"image-bytes")
     assert Path(local_path).exists()
-    assert storage_url.endswith(".png")
+    assert storage_url.endswith(".webp")
     assert "/article-assets/articles/sample-article/" in storage_url

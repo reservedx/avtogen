@@ -180,7 +180,7 @@ To enable real OpenAI generation:
 When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` will:
 
 - request 3 medically neutral prompts
-- generate PNG assets through the OpenAI Images API when available
+- generate WEBP assets through the OpenAI Images API when available
 - save files under `data/generated_assets/<article-slug>/`
 - optionally upload them to S3-compatible storage and store remote URLs
 - gracefully fall back to local prompt-only image records if binary generation fails

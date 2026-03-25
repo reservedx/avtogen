@@ -44,6 +44,9 @@ class ImageGenerator:
     def _image_size(self, is_featured: bool) -> str:
         return "1536x1024" if is_featured else "1024x1024"
 
+    def _content_type(self) -> str:
+        return f"image/{self.gateway.image_output_format}"
+
     def _generate_binary_asset(self, article_slug: str, image_payload: dict) -> dict:
         if self.gateway.client is None:
             return image_payload
@@ -53,7 +56,7 @@ class ImageGenerator:
                 prompt=image_payload["prompt"],
                 size=self._image_size(bool(image_payload.get("is_featured"))),
                 quality="medium",
-                output_format="png",
+                output_format=self.gateway.image_output_format,
                 response_format="b64_json",
                 n=1,
             )
@@ -65,6 +68,8 @@ class ImageGenerator:
                 article_slug,
                 role,
                 base64.b64decode(item.b64_json),
+                extension=self.gateway.image_output_format,
+                content_type=self._content_type(),
             )
             updated = dict(image_payload)
             updated["local_path"] = local_path

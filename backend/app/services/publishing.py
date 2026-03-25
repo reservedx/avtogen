@@ -56,7 +56,7 @@ class PublishingService:
             path = Path(image.local_path)
             if not path.exists() or not path.is_file():
                 continue
-            media = self.adapter.upload_media(path.name, path.read_bytes(), "image/png")
+            media = self.adapter.upload_media(path.name, path.read_bytes(), self._mime_type(path))
             uploaded_media.append(
                 {
                     "image_id": str(image.id),
@@ -70,3 +70,11 @@ class PublishingService:
     def _featured_media_id(self, uploaded_media: list[dict]) -> str | None:
         featured = next((item for item in uploaded_media if item["is_featured"]), None)
         return str(featured["remote_id"]) if featured else None
+
+    def _mime_type(self, path: Path) -> str:
+        suffix = path.suffix.lower()
+        if suffix == ".webp":
+            return "image/webp"
+        if suffix == ".jpeg" or suffix == ".jpg":
+            return "image/jpeg"
+        return "image/png"

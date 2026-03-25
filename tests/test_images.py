@@ -30,6 +30,7 @@ class _FakeImagesClient:
 class _FakeGateway:
     def __init__(self, b64_json: str) -> None:
         self.image_model = "gpt-image-1"
+        self.image_output_format = "webp"
         self.client = type("Client", (), {"images": _FakeImagesClient(b64_json)})()
 
     def generate_image_variants(self, article_title: str) -> list[dict]:
@@ -43,9 +44,10 @@ class _FakeGateway:
 
 
 def test_image_generator_saves_binary_asset(tmp_path) -> None:
-    png_b64 = base64.b64encode(b"fake-png-bytes").decode("utf-8")
-    generator = ImageGenerator(gateway=_FakeGateway(png_b64), output_dir=tmp_path)
+    webp_b64 = base64.b64encode(b"fake-webp-bytes").decode("utf-8")
+    generator = ImageGenerator(gateway=_FakeGateway(webp_b64), output_dir=tmp_path)
     images = generator.generate("Frequent urination with cystitis", "frequent-urination-cystitis")
     assert len(images) == 1
     assert images[0]["local_path"] is not None
     assert images[0]["storage_url"] is not None
+    assert images[0]["local_path"].endswith(".webp")

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     openai_brief_model: str = Field(default="gpt-5.4-mini", alias="OPENAI_BRIEF_MODEL")
     openai_draft_model: str = Field(default="gpt-5.4", alias="OPENAI_DRAFT_MODEL")
     openai_image_model: str = Field(default="gpt-image-1", alias="OPENAI_IMAGE_MODEL")
+    openai_image_output_format: str = Field(default="webp", alias="OPENAI_IMAGE_OUTPUT_FORMAT")
     auto_publish_enabled: bool = Field(default=False, alias="AUTO_PUBLISH_ENABLED")
     min_quality_score: float = Field(default=78, alias="MIN_QUALITY_SCORE")
     max_risk_score_for_auto_publish: float = Field(default=20, alias="MAX_RISK_SCORE_FOR_AUTO_PUBLISH")
