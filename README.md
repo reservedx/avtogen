@@ -86,14 +86,14 @@ Implemented in scaffold form:
 - research pack builder
 - brief generator scaffold
 - draft generator scaffold
-- image record generation scaffold
+- image prompt generation plus local PNG asset persistence
 - markdown to HTML rendering
 - quality gate rules
 - interlinking and cannibalization placeholder service
 - task run recording service for pipeline executions
 - manual review routing
 - article pipeline orchestrator
-- OpenAI gateway boundary for future real generation
+- OpenAI gateway with structured JSON generation and fallback validation
 - WordPress REST adapter boundary
 - minimal Next.js admin UI
 - Alembic initial migration
@@ -167,7 +167,15 @@ To enable real OpenAI generation:
 
 1. Set `OPENAI_API_KEY` in `.env`
 2. Set `USE_STUB_GENERATION=false`
-3. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
+3. Optional: set `ASSET_STORAGE_DIR` if you want generated images stored outside the default `data/generated_assets`
+4. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
+
+When image generation is enabled, `POST /api/v1/articles/{id}/generate-images` will:
+
+- request 3 medically neutral prompts
+- generate PNG assets through the OpenAI Images API when available
+- save files under `data/generated_assets/<article-slug>/`
+- gracefully fall back to prompt-only image records if binary generation fails
 ## Tests
 
 ```bash
@@ -176,8 +184,8 @@ poetry run pytest
 
 ## Roadmap
 
-1. Replace stub generation with OpenAI structured responses and strict DTO validation.
-2. Add actual OpenAI Images + S3 upload flow behind `ImageGenerator`.
-3. Persist interlink suggestions and duplicate detection via embeddings.
-4. Add richer editor review UI with source explorer and version diffing.
-5. Add observability dashboards for `task_runs`, pipeline tracing, and publishing retries.
+1. Persist generated image assets to S3-compatible storage and expose signed/public URLs instead of local file paths.
+2. Persist interlink suggestions and duplicate detection via embeddings.
+3. Add richer editor review UI with source explorer and version diffing.
+4. Add observability dashboards for `task_runs`, pipeline tracing, and publishing retries.
+5. Expand source providers and stricter medical safety validation before auto-publish.

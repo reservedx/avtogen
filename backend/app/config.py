@@ -5,13 +5,15 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+ENV_PATH = BASE_DIR / ".env"
+ENV_EXAMPLE_PATH = BASE_DIR / ".env.example"
 DEFAULT_SQLITE_PATH = BASE_DIR / "data" / "avtogen.db"
 DEFAULT_SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.example"),
+        env_file=(str(ENV_PATH),),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -25,6 +27,7 @@ class Settings(BaseSettings):
     s3_access_key: str = Field(default="minio", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="minio123", alias="S3_SECRET_KEY")
     s3_bucket: str = Field(default="article-assets", alias="S3_BUCKET")
+    asset_storage_dir: str = Field(default=str((BASE_DIR / "data" / "generated_assets").resolve()), alias="ASSET_STORAGE_DIR")
     openai_api_key: str = Field(default="changeme", alias="OPENAI_API_KEY")
     openai_brief_model: str = Field(default="gpt-5.4-mini", alias="OPENAI_BRIEF_MODEL")
     openai_draft_model: str = Field(default="gpt-5.4", alias="OPENAI_DRAFT_MODEL")

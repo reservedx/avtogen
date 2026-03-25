@@ -1,9 +1,12 @@
-﻿from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 
 
-def test_settings_endpoint() -> None:
+def test_settings_endpoint(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "use_stub_generation", True)
+    monkeypatch.setattr(settings, "openai_api_key", "changeme")
     with TestClient(app) as client:
         response = client.get("/api/v1/settings")
         assert response.status_code == 200

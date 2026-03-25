@@ -124,8 +124,16 @@ def generate_brief(topic_id: str, db: Session = Depends(get_db)) -> dict:
         for source in db.query(Source).filter(Source.topic_id == topic.id).all()
     ]
     research_pack = ResearchPackBuilder().build(topic.working_title, topic.target_query, topic.audience, "informational", source_rows, [])
+    gateway = OpenAIGateway()
     generator = BriefGenerator()
-    brief = Brief(topic_id=topic.id, version=db.query(Brief).filter(Brief.topic_id == topic.id).count() + 1, brief_json=generator.generate(research_pack), prompt_snapshot=generator.prompt_snapshot(research_pack), model_name=settings.openai_brief_model)
+    brief_payload = gateway.generate_brief_json(research_pack) or generator.generate(research_pack)
+    brief = Brief(
+        topic_id=topic.id,
+        version=db.query(Brief).filter(Brief.topic_id == topic.id).count() + 1,
+        brief_json=brief_payload,
+        prompt_snapshot=generator.prompt_snapshot(research_pack),
+        model_name=settings.openai_brief_model if gateway.enabled else "stub",
+    )
     db.add(brief)
     db.commit()
     db.refresh(brief)
@@ -145,12 +153,51 @@ def generate_draft(topic_id: str, db: Session = Depends(get_db)) -> Article:
     brief = db.query(Brief).filter(Brief.topic_id == topic.id).order_by(Brief.version.desc()).first()
     if not brief:
         raise HTTPException(status_code=400, detail="Brief required before draft generation")
-    sources = [{"url": source.url, "title": source.title, "source_type": source.source_type} for source in db.query(Source).filter(Source.topic_id == topic.id).all()]
-    draft = DraftGenerator().generate(brief.brief_json, {"source_summaries": sources})
+    sources = [
+        {
+            "url": source.url,
+            "title": source.title,
+            "source_type": source.source_type,
+            "summary": source.cleaned_content or source.raw_content or "",
+        }
+        for source in db.query(Source).filter(Source.topic_id == topic.id).all()
+    ]
+    research_pack = ResearchPackBuilder().build(
+        topic.working_title,
+        topic.target_query,
+        topic.audience,
+        "informational",
+        sources,
+        [],
+    )
+    gateway = OpenAIGateway()
+    draft_generator = DraftGenerator()
+    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(
+        brief.brief_json,
+        research_pack,
+    )
     article = Article(topic_id=topic.id, brief_id=brief.id, title=draft["title"], slug=draft["slug"], status="draft")
     db.add(article)
     db.flush()
-    version = ArticleVersion(article_id=article.id, version=1, content_markdown=draft["content_markdown"], content_html=draft["content_html"], excerpt=draft["excerpt"], meta_title=draft["meta_title"], meta_description=draft["meta_description"], faq_json=draft["faq_json"], schema_json=draft["schema_json"], word_count=len(draft["content_markdown"].split()), created_by="system", generation_context={"brief_id": str(brief.id), "image_prompts": draft["image_prompts"], "alt_texts": draft["alt_texts"]})
+    version = ArticleVersion(
+        article_id=article.id,
+        version=1,
+        content_markdown=draft["content_markdown"],
+        content_html=draft["content_html"],
+        excerpt=draft["excerpt"],
+        meta_title=draft["meta_title"],
+        meta_description=draft["meta_description"],
+        faq_json=draft["faq_json"],
+        schema_json=draft["schema_json"],
+        word_count=len(draft["content_markdown"].split()),
+        created_by="system",
+        generation_context={
+            "brief_id": str(brief.id),
+            "generation_mode": "openai" if gateway.enabled else "stub",
+            "image_prompts": draft["image_prompts"],
+            "alt_texts": draft["alt_texts"],
+        },
+    )
     db.add(version)
     db.flush()
     article.current_version_id = version.id
@@ -167,10 +214,8 @@ def generate_images(article_id: str, db: Session = Depends(get_db)) -> list[Imag
     existing = db.query(Image).filter(Image.article_id == article.id).all()
     if existing:
         return existing
-    gateway = OpenAIGateway()
-    generated = gateway.generate_image_variants(article.title)
     rows = []
-    for image_payload in generated or ImageGenerator().generate(article.title):
+    for image_payload in ImageGenerator().generate(article.title, article.slug):
         image = Image(article_id=article.id, **image_payload)
         db.add(image)
         rows.append(image)
