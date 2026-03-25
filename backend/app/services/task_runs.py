@@ -13,6 +13,18 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def json_safe(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    return value
+
+
 class TaskRunRecorder:
     def start(self, db: Session, task_type: str, entity_type: str, entity_id: UUID, input_json: dict[str, Any]) -> TaskRun:
         row = TaskRun(
@@ -20,7 +32,7 @@ class TaskRunRecorder:
             entity_type=entity_type,
             entity_id=entity_id,
             status="running",
-            input_json=input_json,
+            input_json=json_safe(input_json),
             output_json={},
             started_at=utcnow(),
         )
@@ -30,7 +42,7 @@ class TaskRunRecorder:
 
     def finish(self, db: Session, row: TaskRun, output_json: dict[str, Any]) -> TaskRun:
         row.status = "completed"
-        row.output_json = output_json
+        row.output_json = json_safe(output_json)
         row.finished_at = utcnow()
         db.add(row)
         return row

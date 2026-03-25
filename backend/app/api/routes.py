@@ -121,12 +121,19 @@ def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail="Topic not found")
     providers = [YouTubeTranscriptProvider(), ManualSourceProvider()]
     collected = []
+    existing_urls = {
+        source.url for source in db.query(Source).filter(Source.topic_id == topic.id).all()
+    }
     for provider in providers:
         collected.extend(provider.collect(topic.target_query))
+    inserted = 0
     for item in collected:
+        if item["url"] in existing_urls:
+            continue
         db.add(Source(topic_id=topic.id, **item))
+        inserted += 1
     db.commit()
-    return {"collected": len(collected)}
+    return {"collected": inserted, "skipped_duplicates": len(collected) - inserted}
 
 
 @router.get("/topics/{topic_id}/sources", response_model=list[SourceRead])
