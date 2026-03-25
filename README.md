@@ -128,6 +128,7 @@ Implemented in scaffold form:
 - `POST /api/v1/articles/{id}/publish`
 - `GET /api/v1/articles/{id}/publishing-status`
 - `POST /api/v1/pipeline/run`
+- `POST /api/v1/pipeline/run-bulk`
 
 ## Run Locally
 

@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel
+from pydantic import BaseModel
 
 
 class ReviewDecisionRequest(BaseModel):
@@ -8,4 +8,9 @@ class ReviewDecisionRequest(BaseModel):
 
 class PipelineRunRequest(BaseModel):
     topic_query: str
+    audience: str = "general audience"
+
+
+class BulkPipelineRunRequest(BaseModel):
+    topic_queries: list[str]
     audience: str = "general audience"

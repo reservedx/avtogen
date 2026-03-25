@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from uuid import uuid4
 
@@ -37,3 +37,18 @@ class PipelineService:
             self.task_recorder.fail(db, task, str(exc))
             db.commit()
             raise
+
+    def run_bulk_with_task_log(self, db: Session, topic_queries: list[str], audience: str) -> dict:
+        results = []
+        for topic_query in topic_queries:
+            results.append(
+                {
+                    "topic_query": topic_query,
+                    "result": self.run_with_task_log(db, topic_query, audience),
+                }
+            )
+        return {
+            "requested": len(topic_queries),
+            "completed": len(results),
+            "results": results,
+        }

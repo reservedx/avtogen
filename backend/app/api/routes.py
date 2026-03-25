@@ -11,7 +11,7 @@ from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspac
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.topic import TopicCreate, TopicRead
-from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
+from app.schemas.workflow import BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
@@ -402,3 +402,13 @@ def publishing_status(article_id: UUID, db: Session = Depends(get_db)) -> Publis
 @router.post("/pipeline/run")
 def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> dict:
     return PipelineService().run_with_task_log(db, payload.topic_query, payload.audience)
+
+
+@router.post("/pipeline/run-bulk")
+def run_pipeline_bulk(payload: BulkPipelineRunRequest, db: Session = Depends(get_db)) -> dict:
+    topic_queries = [item.strip() for item in payload.topic_queries if item.strip()]
+    if not topic_queries:
+        raise HTTPException(status_code=400, detail="At least one topic query is required")
+    if len(topic_queries) > 20:
+        raise HTTPException(status_code=400, detail="Bulk pipeline is limited to 20 topic queries per request")
+    return PipelineService().run_bulk_with_task_log(db, topic_queries, payload.audience)
