@@ -58,3 +58,25 @@ export async function runBulkFastLaneTopicsAction(topicIds: string[]): Promise<v
   });
   revalidatePath("/");
 }
+
+export async function bulkCreateTopicsAction(formData: FormData): Promise<void> {
+  const clusterName = String(formData.get("cluster_name") || "Bulk Imported Topics").trim();
+  const audience = String(formData.get("audience") || "general audience").trim();
+  const rawTopics = String(formData.get("topic_queries") || "").trim();
+  if (!rawTopics) {
+    return;
+  }
+  const topicQueries = rawTopics
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!topicQueries.length) {
+    return;
+  }
+  await postApiJson("/topics/bulk-create", {
+    cluster_name: clusterName,
+    audience: audience || "general audience",
+    topic_queries: topicQueries,
+  });
+  revalidatePath("/");
+}

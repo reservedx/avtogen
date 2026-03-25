@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import {
+  bulkCreateTopicsAction,
   bulkApproveAction,
   bulkPublishAction,
   bulkSubmitForReviewAction,
@@ -221,6 +222,25 @@ export default async function HomePage() {
                 <button className="action-button accent-button" type="submit">Запустить fast lane по очереди тем</button>
               </form>
             </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Импорт тем</p>
+                <h2>Добавить пачку тем списком</h2>
+              </div>
+            </div>
+            <form className="action-form" action={bulkCreateTopicsAction}>
+              <input name="cluster_name" placeholder="Название кластера" defaultValue="Bulk Imported Topics" />
+              <input name="audience" placeholder="Аудитория" defaultValue="general audience" />
+              <textarea
+                name="topic_queries"
+                placeholder={"Вставь темы по одной в строке\nчастое мочеиспускание без боли\nжжение при мочеиспускании у женщин\nниктурия у женщин"}
+                rows={8}
+              />
+              <button className="action-button" type="submit">Импортировать темы</button>
+            </form>
           </article>
 
           <article className="panel">

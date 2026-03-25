@@ -12,7 +12,7 @@ from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersio
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
-from app.schemas.topic import CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
+from app.schemas.topic import BulkTopicCreateRequest, BulkTopicCreateResponse, BulkTopicCreateResult, CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
 
@@ -309,6 +309,52 @@ def create_topic(payload: TopicCreate, db: Session = Depends(get_db)) -> Content
     db.commit()
     db.refresh(topic)
     return topic
+
+
+@router.post("/topics/bulk-create", response_model=BulkTopicCreateResponse)
+def bulk_create_topics(payload: BulkTopicCreateRequest, db: Session = Depends(get_db)) -> BulkTopicCreateResponse:
+    cluster = db.get(Cluster, payload.cluster_id) if payload.cluster_id else None
+    if payload.cluster_id and not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if not cluster:
+        cluster_slug = InterlinkingService()._slug_like(payload.cluster_name)[:255]
+        cluster = db.query(Cluster).filter(Cluster.slug == cluster_slug).first()
+        if not cluster:
+            cluster = Cluster(name=payload.cluster_name, slug=cluster_slug, description="Bulk imported topic cluster")
+            db.add(cluster)
+            db.flush()
+
+    created = 0
+    skipped = 0
+    results: list[BulkTopicCreateResult] = []
+    existing_queries = {
+        item.target_query.strip().lower()
+        for item in db.query(ContentTopic).filter(ContentTopic.cluster_id == cluster.id).all()
+    }
+    for raw_query in payload.topic_queries[:200]:
+        topic_query = raw_query.strip()
+        if not topic_query:
+            continue
+        normalized = topic_query.lower()
+        if normalized in existing_queries:
+            skipped += 1
+            continue
+        topic = ContentTopic(
+            cluster_id=cluster.id,
+            working_title=topic_query[:255],
+            target_query=topic_query[:255],
+            audience=payload.audience,
+            content_type=payload.content_type,
+            status="planned",
+            cannibalization_hash=InterlinkingService().cannibalization_hash(topic_query),
+        )
+        db.add(topic)
+        db.flush()
+        existing_queries.add(normalized)
+        created += 1
+        results.append(BulkTopicCreateResult(topic_id=str(topic.id), working_title=topic.working_title, status=topic.status))
+    db.commit()
+    return BulkTopicCreateResponse(cluster_id=str(cluster.id), created=created, skipped=skipped, results=results)
 
 
 @router.get("/topics", response_model=list[TopicRead])
@@ -690,16 +736,6 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
     report = _run_quality_check_for_article(db, article)
-    risk_tier = report.get("risk_tier", RiskTierService().classify(topic.working_title, topic.target_query, draft["content_markdown"]))
-    fast_lane = RiskTierService().fast_lane_eligible(risk_tier, report)
-    if fast_lane and settings.auto_approve_low_risk:
-        article.status = "approved"
-        if settings.auto_publish_low_risk and settings.auto_publish_enabled:
-            response = PublishingService().publish_article(article, version, image_rows)
-            remote_post = response["post"]
-            article.cms_post_id = str(remote_post["id"])
-            article.published_url = remote_post.get("link")
-            article.status = "published"
     db.commit()
     return report
 

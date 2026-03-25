@@ -107,6 +107,7 @@ Implemented in scaffold form:
 - `POST /api/v1/keywords`
 - `GET /api/v1/keywords`
 - `POST /api/v1/topics`
+- `POST /api/v1/topics/bulk-create`
 - `GET /api/v1/topics`
 - `GET /api/v1/topics/{id}`
 - `POST /api/v1/topics/{id}/collect-sources`

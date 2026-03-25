@@ -37,6 +37,27 @@ class TopicWorkspaceRead(BaseModel):
     articles: list[dict]
 
 
+class BulkTopicCreateRequest(BaseModel):
+    cluster_id: UUID | None = None
+    cluster_name: str = "Bulk Imported Topics"
+    audience: str = "general audience"
+    content_type: str = "blog_post"
+    topic_queries: list[str]
+
+
+class BulkTopicCreateResult(BaseModel):
+    topic_id: str
+    working_title: str
+    status: str
+
+
+class BulkTopicCreateResponse(BaseModel):
+    cluster_id: str
+    created: int
+    skipped: int
+    results: list[BulkTopicCreateResult]
+
+
 class CannibalizationMatchRead(BaseModel):
     entity_id: str | None
     entity_type: str
