@@ -1,14 +1,15 @@
-﻿import "./globals.css";
 import type { ReactNode } from "react";
 
+import "./globals.css";
+
 export const metadata = {
-  title: "Women Health Content Admin",
-  description: "Editorial queue for AI-assisted women's health content",
+  title: "Avtogen Control Center",
+  description: "Редакторский центр для AI-платформы публикации статей о женском здоровье",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ru">
       <body>{children}</body>
     </html>
   );
