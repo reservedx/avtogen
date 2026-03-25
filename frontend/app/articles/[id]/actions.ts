@@ -53,3 +53,30 @@ export async function regenerateSectionAction(articleId: string, formData: FormD
   });
   refreshArticlePaths(articleId);
 }
+
+export async function saveManualVersionAction(articleId: string, formData: FormData): Promise<void> {
+  const title = String(formData.get("title") || "").trim();
+  const slug = String(formData.get("slug") || "").trim();
+  const excerpt = String(formData.get("excerpt") || "").trim();
+  const metaTitle = String(formData.get("meta_title") || "").trim();
+  const metaDescription = String(formData.get("meta_description") || "").trim();
+  const contentMarkdown = String(formData.get("content_markdown") || "").trim();
+  const editorName = String(formData.get("editor_name") || "Editor").trim();
+  const changeNote = String(formData.get("change_note") || "").trim();
+
+  if (!metaTitle || !metaDescription || !contentMarkdown) {
+    return;
+  }
+
+  await postApiJson(`/articles/${articleId}/save-manual-version`, {
+    title: title || null,
+    slug: slug || null,
+    excerpt: excerpt || null,
+    meta_title: metaTitle,
+    meta_description: metaDescription,
+    content_markdown: contentMarkdown,
+    editor_name: editorName || "Editor",
+    change_note: changeNote || null,
+  });
+  refreshArticlePaths(articleId);
+}

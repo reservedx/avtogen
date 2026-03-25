@@ -8,7 +8,7 @@ from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
@@ -486,6 +486,48 @@ def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: 
     article.status = "needs_revision"
     db.commit()
     return {"article_id": str(article_id), "new_version": new_version.version}
+
+
+@router.post("/articles/{article_id}/save-manual-version")
+def save_manual_version(article_id: UUID, payload: ManualArticleVersionCreate, db: Session = Depends(get_db)) -> dict:
+    article = db.get(Article, article_id)
+    if not article or not article.current_version_id:
+        raise HTTPException(status_code=404, detail="Article not found")
+    current = db.get(ArticleVersion, article.current_version_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Current article version not found")
+
+    renderer = DraftGenerator()
+    markdown_content = payload.content_markdown.strip()
+    new_version = ArticleVersion(
+        article_id=article.id,
+        version=db.query(ArticleVersion).filter(ArticleVersion.article_id == article.id).count() + 1,
+        content_markdown=markdown_content,
+        content_html=renderer.render_html(markdown_content),
+        excerpt=payload.excerpt,
+        meta_title=payload.meta_title.strip(),
+        meta_description=payload.meta_description.strip(),
+        faq_json=current.faq_json,
+        schema_json=current.schema_json,
+        word_count=len(markdown_content.split()),
+        created_by="editor",
+        generation_context={
+            "action": "manual_edit",
+            "editor_name": payload.editor_name,
+            "change_note": payload.change_note,
+        },
+    )
+    db.add(new_version)
+    db.flush()
+
+    if payload.title:
+        article.title = payload.title.strip()
+    if payload.slug:
+        article.slug = payload.slug.strip()
+    article.current_version_id = new_version.id
+    article.status = "needs_revision"
+    db.commit()
+    return {"article_id": str(article_id), "new_version": new_version.version, "status": article.status}
 
 
 @router.get("/articles/{article_id}", response_model=ArticleRead)

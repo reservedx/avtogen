@@ -120,6 +120,7 @@ Implemented in scaffold form:
 - `GET /api/v1/articles/{id}/workspace`
 - `POST /api/v1/articles/{id}/generate-images`
 - `POST /api/v1/articles/{id}/regenerate-section`
+- `POST /api/v1/articles/{id}/save-manual-version`
 - `GET /api/v1/articles/{id}`
 - `GET /api/v1/articles/{id}/versions`
 - `POST /api/v1/articles/{id}/run-quality-check`

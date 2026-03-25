@@ -8,6 +8,7 @@ import {
   regenerateSectionAction,
   rejectArticleAction,
   runQualityCheckAction,
+  saveManualVersionAction,
   submitForReviewAction,
 } from "./actions";
 
@@ -32,6 +33,7 @@ type ArticleWorkspace = {
     version: number;
     word_count: number;
     content_markdown: string;
+    excerpt: string | null;
     meta_title: string;
     meta_description: string;
   } | null;
@@ -222,6 +224,61 @@ export default async function ArticleWorkspacePage({
                 </article>
               </div>
             ) : null}
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Ручная правка</p>
+                <h2>Сохранить новую версию от редактора</h2>
+              </div>
+            </div>
+            <form className="action-form" action={saveManualVersionAction.bind(null, id)}>
+              <input
+                name="title"
+                placeholder="Заголовок статьи"
+                defaultValue={workspace.article.title}
+              />
+              <input
+                name="slug"
+                placeholder="slug"
+                defaultValue={workspace.article.slug}
+              />
+              <input
+                name="editor_name"
+                placeholder="Имя редактора"
+                defaultValue="Editor"
+              />
+              <input
+                name="meta_title"
+                placeholder="Meta title"
+                defaultValue={workspace.current_version?.meta_title ?? ""}
+              />
+              <textarea
+                name="meta_description"
+                placeholder="Meta description"
+                rows={3}
+                defaultValue={workspace.current_version?.meta_description ?? ""}
+              />
+              <textarea
+                name="excerpt"
+                placeholder="Краткое описание"
+                rows={3}
+                defaultValue={workspace.current_version?.excerpt ?? ""}
+              />
+              <textarea
+                name="change_note"
+                placeholder="Что изменено в этой версии"
+                rows={2}
+              />
+              <textarea
+                name="content_markdown"
+                placeholder="Markdown статьи"
+                rows={20}
+                defaultValue={workspace.current_version?.content_markdown ?? ""}
+              />
+              <button className="action-button accent-button" type="submit">Сохранить ручную версию</button>
+            </form>
           </article>
 
           <article className="panel">

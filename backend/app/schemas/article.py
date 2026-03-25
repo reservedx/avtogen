@@ -152,6 +152,17 @@ class RegenerateSectionRequest(BaseModel):
     instructions: str | None = None
 
 
+class ManualArticleVersionCreate(BaseModel):
+    title: str | None = None
+    slug: str | None = None
+    excerpt: str | None = None
+    meta_title: str
+    meta_description: str
+    content_markdown: str
+    editor_name: str = Field(default="Editor")
+    change_note: str | None = None
+
+
 class QualityReportRead(ORMModel):
     id: UUID
     article_version_id: UUID
