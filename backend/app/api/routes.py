@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
 from app.config import settings
-from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, Image, PublishingJob, QualityReport, Source, TaskRun
+from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, PublishingJob, QualityReport, Source, TaskRun
 from app.db.session import get_db
 from app.schemas.article import ArticleRead, ArticleVersionRead, BriefRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, QualityGateService, ResearchPackBuilder, WordPressAdapter, YouTubeTranscriptProvider
+from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -298,6 +298,15 @@ def approve_article(article_id: str, payload: ReviewDecisionRequest, db: Session
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     article.status = "approved"
+    db.add(
+        EditorialReview(
+            article_id=article.id,
+            article_version_id=article.current_version_id,
+            reviewer_name=payload.reviewer_name,
+            decision="approved",
+            notes=payload.notes,
+        )
+    )
     db.commit()
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
@@ -308,6 +317,15 @@ def reject_article(article_id: str, payload: ReviewDecisionRequest, db: Session 
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     article.status = "rejected"
+    db.add(
+        EditorialReview(
+            article_id=article.id,
+            article_version_id=article.current_version_id,
+            reviewer_name=payload.reviewer_name,
+            decision="rejected",
+            notes=payload.notes,
+        )
+    )
     db.commit()
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
@@ -323,13 +341,21 @@ def publish_article(article_id: str, db: Session = Depends(get_db)) -> dict:
     if not report:
         raise HTTPException(status_code=400, detail="Quality report required before publishing")
     version = db.get(ArticleVersion, article.current_version_id)
-    payload = {"title": article.title, "slug": article.slug, "content": version.content_html, "excerpt": version.excerpt, "status": "draft"}
+    images = db.query(Image).filter(Image.article_id == article.id).all()
+    payload = {
+        "title": version.meta_title or article.title,
+        "slug": article.slug,
+        "excerpt": version.excerpt,
+        "status": "draft",
+        "image_count": len(images),
+    }
     job = PublishingJob(article_id=article.id, target_system="wordpress", status="running", request_payload=payload, response_payload={})
     db.add(job)
     db.commit()
-    response = WordPressAdapter().create_post(payload)
-    article.cms_post_id = str(response["id"])
-    article.published_url = response.get("link")
+    response = PublishingService().publish_article(article, version, images)
+    remote_post = response["post"]
+    article.cms_post_id = str(remote_post["id"])
+    article.published_url = remote_post.get("link")
     article.status = "published"
     job.status = "published"
     job.response_payload = response

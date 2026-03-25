@@ -91,10 +91,10 @@ Implemented in scaffold form:
 - quality gate rules
 - interlinking and cannibalization placeholder service
 - task run recording service for pipeline executions
-- manual review routing
+- manual review routing with editorial decision audit trail
 - article pipeline orchestrator
 - OpenAI gateway with structured JSON generation and fallback validation
-- WordPress REST adapter boundary
+- WordPress publishing service with media upload and featured image flow
 - minimal Next.js admin UI
 - Alembic initial migration
 - starter tests and seed data
