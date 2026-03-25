@@ -185,6 +185,19 @@ def _create_article_for_topic(db: Session, topic: ContentTopic, brief: Brief, re
     return article, version
 
 
+def _ensure_article_images(db: Session, article: Article) -> list[Image]:
+    existing = db.query(Image).filter(Image.article_id == article.id).order_by(Image.created_at.asc()).all()
+    if existing:
+        return existing
+    created: list[Image] = []
+    for image_payload in ImageGenerator().generate(article.title, article.slug):
+        image = Image(article_id=article.id, **image_payload)
+        db.add(image)
+        created.append(image)
+    db.flush()
+    return created
+
+
 @router.get("/settings", response_model=SettingsSummaryRead)
 def get_settings_summary() -> SettingsSummaryRead:
     return SettingsSummaryRead(
@@ -598,14 +611,7 @@ def generate_images(article_id: UUID, db: Session = Depends(get_db)) -> list[Ima
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    existing = db.query(Image).filter(Image.article_id == article.id).all()
-    if existing:
-        return existing
-    rows = []
-    for image_payload in ImageGenerator().generate(article.title, article.slug):
-        image = Image(article_id=article.id, **image_payload)
-        db.add(image)
-        rows.append(image)
+    rows = _ensure_article_images(db, article)
     db.commit()
     for image in rows:
         db.refresh(image)
@@ -742,7 +748,7 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/articles/bulk-action", response_model=BulkArticleActionResponse)
 def bulk_article_action(payload: BulkArticleActionRequest, db: Session = Depends(get_db)) -> BulkArticleActionResponse:
-    supported_actions = {"run_quality_check", "submit_for_review", "approve", "publish"}
+    supported_actions = {"run_quality_check", "submit_for_review", "approve", "publish", "generate_images"}
     if payload.action not in supported_actions:
         raise HTTPException(status_code=400, detail=f"Unsupported action: {payload.action}")
     article_ids = [item.strip() for item in payload.article_ids if item.strip()]
@@ -759,6 +765,9 @@ def bulk_article_action(payload: BulkArticleActionRequest, db: Session = Depends
             if payload.action == "run_quality_check":
                 report = _run_quality_check_for_article(db, article)
                 results.append(BulkActionResult(article_id=article_id, status="completed", detail=report["overall_status"]))
+            elif payload.action == "generate_images":
+                images = _ensure_article_images(db, article)
+                results.append(BulkActionResult(article_id=article_id, status="completed", detail=f"{len(images)} images ready"))
             elif payload.action == "submit_for_review":
                 article.status = "in_review"
                 results.append(BulkActionResult(article_id=article_id, status="completed", detail=article.status))

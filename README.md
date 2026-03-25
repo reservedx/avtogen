@@ -127,6 +127,7 @@ Implemented in scaffold form:
 - `GET /api/v1/articles/{id}/versions`
 - `POST /api/v1/articles/{id}/run-quality-check`
 - `GET /api/v1/articles/{id}/quality-report`
+- `POST /api/v1/articles/bulk-action` with `generate_images`
 - `POST /api/v1/articles/{id}/submit-for-review`
 - `POST /api/v1/articles/{id}/approve`
 - `POST /api/v1/articles/{id}/reject`

@@ -19,6 +19,10 @@ export async function runBulkQualityCheckAction(articleIds: string[]): Promise<v
   await runBulkAction(articleIds, "run_quality_check");
 }
 
+export async function bulkGenerateImagesAction(articleIds: string[]): Promise<void> {
+  await runBulkAction(articleIds, "generate_images");
+}
+
 export async function bulkSubmitForReviewAction(articleIds: string[]): Promise<void> {
   await runBulkAction(articleIds, "submit_for_review");
 }

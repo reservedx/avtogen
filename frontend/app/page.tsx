@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   bulkCreateTopicsAction,
   bulkApproveAction,
+  bulkGenerateImagesAction,
   bulkPublishAction,
   bulkSubmitForReviewAction,
   createDemoProjectAction,
@@ -183,9 +184,14 @@ export default async function HomePage() {
               </form>
             </div>
             <div className="action-columns top-gap">
+              <form action={bulkGenerateImagesAction.bind(null, reviewQueueIds)}>
+                <button className="action-button" type="submit">Сгенерировать изображения</button>
+              </form>
               <form action={bulkApproveAction.bind(null, reviewQueueIds)}>
                 <button className="action-button" type="submit">Одобрить очередь</button>
               </form>
+            </div>
+            <div className="action-columns top-gap">
               <form action={bulkPublishAction.bind(null, approvedArticleIds)}>
                 <button className="action-button accent-button" type="submit">Опубликовать одобренные</button>
               </form>
