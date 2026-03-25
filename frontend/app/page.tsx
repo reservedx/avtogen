@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getDashboardData } from "./lib/dashboard";
 
 function statusTone(status: string): string {
@@ -117,7 +119,9 @@ export default async function HomePage() {
               {reviewQueue.map((article) => (
                 <article className="queue-item" key={article.id}>
                   <div className="queue-header">
-                    <strong>{article.title}</strong>
+                    <strong>
+                      <Link href={`/articles/${article.id}`}>{article.title}</Link>
+                    </strong>
                     <div className={`badge ${statusTone(article.status)}`}>{article.status}</div>
                   </div>
                   <p>{scoreLabel(article.quality_score, "quality")}</p>
@@ -140,7 +144,9 @@ export default async function HomePage() {
                 published.map((article) => (
                   <article className="published-row" key={article.id}>
                     <div>
-                      <strong>{article.title}</strong>
+                      <strong>
+                        <Link href={`/articles/${article.id}`}>{article.title}</Link>
+                      </strong>
                       <p className="muted">{article.published_url ?? "Published without URL"}</p>
                     </div>
                     <div className="published-meta">

@@ -69,22 +69,6 @@ export type DashboardData = {
   apiOnline: boolean;
 };
 
-const API_BASE = process.env.API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
-
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
 function fallbackData(): DashboardData {
   return {
     apiOnline: false,
@@ -189,11 +173,11 @@ function fallbackData(): DashboardData {
 
 export async function getDashboardData(): Promise<DashboardData> {
   const [articles, metrics, settings, topics, taskRuns] = await Promise.all([
-    fetchJson<Article[]>("/articles"),
-    fetchJson<Metrics>("/metrics"),
-    fetchJson<Settings>("/settings"),
-    fetchJson<Topic[]>("/topics"),
-    fetchJson<TaskRun[]>("/task-runs"),
+    fetchApiJson<Article[]>("/articles"),
+    fetchApiJson<Metrics>("/metrics"),
+    fetchApiJson<Settings>("/settings"),
+    fetchApiJson<Topic[]>("/topics"),
+    fetchApiJson<TaskRun[]>("/task-runs"),
   ]);
 
   if (!metrics || !settings) {
@@ -202,7 +186,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const articleRows = articles && articles.length ? articles : deriveArticlesFromTopics(topics ?? []);
   const leadWorkspace = articleRows[0]
-    ? await fetchJson<ArticleWorkspace>(`/articles/${articleRows[0].id}/workspace`)
+    ? await fetchApiJson<ArticleWorkspace>(`/articles/${articleRows[0].id}/workspace`)
     : null;
 
   return {
@@ -229,3 +213,4 @@ function deriveArticlesFromTopics(topics: Topic[]): Article[] {
     published_url: topic.status === "published" ? `https://example.com/${topic.id}` : null,
   }));
 }
+import { fetchApiJson } from "./api";
