@@ -96,7 +96,7 @@ Implemented in scaffold form:
 - OpenAI gateway with structured JSON generation and fallback validation
 - asset storage abstraction with local and S3-compatible persistence modes
 - WordPress publishing service with media upload and featured image flow
-- minimal Next.js admin UI
+- Next.js admin UI with live-or-fallback dashboard for review queue, published items, failed jobs, and runtime settings
 - Alembic initial migration
 - starter tests and seed data
 

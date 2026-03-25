@@ -1,55 +1,217 @@
-﻿const reviewQueue = [
-  {
-    title: "Frequent urination with cystitis",
-    status: "in_review",
-    risk: "manual review required",
-    notes: "Treatment-adjacent language detected, verify red flags and citations.",
-  },
-  {
-    title: "Burning during urination",
-    status: "needs_revision",
-    risk: "quality warnings",
-    notes: "Weak FAQ coverage and missing internal links.",
-  },
-];
+import { getDashboardData } from "./lib/dashboard";
 
-const stats = [
-  { label: "Drafts this week", value: "24" },
-  { label: "Blocked by QA", value: "7" },
-  { label: "Awaiting review", value: "11" },
-  { label: "Published", value: "13" },
-];
+function statusTone(status: string): string {
+  if (status === "published" || status === "completed" || status === "approved") {
+    return "success";
+  }
+  if (status === "needs_revision" || status === "failed") {
+    return "danger";
+  }
+  return "warn";
+}
 
-export default function HomePage() {
+function scoreLabel(value: number | null, kind: "quality" | "risk"): string {
+  if (value === null) {
+    return kind === "quality" ? "No QA yet" : "Risk unknown";
+  }
+  return `${kind === "quality" ? "Quality" : "Risk"} ${value}/100`;
+}
+
+export default async function HomePage() {
+  const data = await getDashboardData();
+  const reviewQueue = data.articles.filter((article) => article.status !== "published").slice(0, 4);
+  const published = data.articles.filter((article) => article.status === "published").slice(0, 3);
+  const failedJobs = data.taskRuns.filter((task) => task.status === "failed").slice(0, 4);
+  const leadArticle = reviewQueue[0] ?? data.articles[0];
+
   return (
     <main className="page-shell">
       <section className="hero">
-        <p className="badge">Editorial Control Center</p>
-        <h1>Women's health content workflow with review-first publishing.</h1>
-        <p>The MVP admin keeps risky YMYL content visible, versioned, and gated by research coverage, quality checks, and editorial approval before CMS sync.</p>
+        <div className="hero-copy">
+          <p className="eyebrow">Editorial Control Center</p>
+          <h1>Review-first publishing for sensitive women&apos;s health content.</h1>
+          <p className="hero-text">
+            The admin surfaces risky drafts, quality signals, storage mode, and publishing readiness in one place.
+            It is designed for YMYL workflows where draft quality and human review matter more than raw output volume.
+          </p>
+        </div>
+        <div className="hero-status">
+          <div className={`badge ${data.apiOnline ? "success" : "warn"}`}>
+            {data.apiOnline ? "API online" : "Fallback preview"}
+          </div>
+          <div className="status-stack">
+            <span>{data.settings.app_name}</span>
+            <strong>{data.settings.app_env}</strong>
+          </div>
+        </div>
       </section>
-      <div className="grid">
-        <aside className="card">
-          <h2>Pipeline Snapshot</h2>
-          {stats.map((item) => (
-            <div className="stat" key={item.label}>
-              <strong>{item.value}</strong>
-              <span>{item.label}</span>
+
+      <section className="metrics-grid">
+        <article className="metric-card accent">
+          <span>Topics in queue</span>
+          <strong>{data.metrics.topics_count}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Articles tracked</span>
+          <strong>{data.metrics.articles_count}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Published</span>
+          <strong>{data.metrics.published_articles_count}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Task runs</span>
+          <strong>{data.metrics.task_runs_count}</strong>
+        </article>
+      </section>
+
+      <section className="dashboard-grid">
+        <div className="column-main">
+          <article className="panel spotlight">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Lead Article</p>
+                <h2>{leadArticle?.title ?? "No articles yet"}</h2>
+              </div>
+              {leadArticle ? <div className={`badge ${statusTone(leadArticle.status)}`}>{leadArticle.status}</div> : null}
             </div>
-          ))}
-        </aside>
-        <section className="card">
-          <h2>Review Queue</h2>
-          {reviewQueue.map((item) => (
-            <article className="queue-item" key={item.title}>
-              <div className={item.status === "needs_revision" ? "badge warn" : "badge danger"}>{item.status}</div>
-              <strong>{item.title}</strong>
-              <span>{item.risk}</span>
-              <p>{item.notes}</p>
-            </article>
-          ))}
-        </section>
-      </div>
+            {leadArticle ? (
+              <div className="spotlight-grid">
+                <div className="story-card">
+                  <span className="kicker">Readiness</span>
+                  <p>{scoreLabel(leadArticle.quality_score, "quality")}</p>
+                  <p>{scoreLabel(leadArticle.risk_score, "risk")}</p>
+                  <p className="muted">Slug: {leadArticle.slug}</p>
+                </div>
+                <div className="story-card">
+                  <span className="kicker">Publishing</span>
+                  <p>{leadArticle.cms_post_id ? `Remote post #${leadArticle.cms_post_id}` : "Not synced to CMS"}</p>
+                  <p className="muted">
+                    {leadArticle.published_url ? leadArticle.published_url : "Waiting for approval and publish step."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="muted">Create a topic in the API to start populating the queue.</p>
+            )}
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Review Queue</p>
+                <h2>Articles needing editor attention</h2>
+              </div>
+            </div>
+            <div className="stack">
+              {reviewQueue.map((article) => (
+                <article className="queue-item" key={article.id}>
+                  <div className="queue-header">
+                    <strong>{article.title}</strong>
+                    <div className={`badge ${statusTone(article.status)}`}>{article.status}</div>
+                  </div>
+                  <p>{scoreLabel(article.quality_score, "quality")}</p>
+                  <p>{scoreLabel(article.risk_score, "risk")}</p>
+                  <span className="muted">{article.slug}</span>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Published</p>
+                <h2>Recently published or CMS-linked</h2>
+              </div>
+            </div>
+            <div className="stack">
+              {published.length ? (
+                published.map((article) => (
+                  <article className="published-row" key={article.id}>
+                    <div>
+                      <strong>{article.title}</strong>
+                      <p className="muted">{article.published_url ?? "Published without URL"}</p>
+                    </div>
+                    <div className="published-meta">
+                      <span>{article.cms_post_id ? `WP #${article.cms_post_id}` : "Awaiting sync"}</span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Published articles will appear here after WordPress sync.</p>
+              )}
+            </div>
+          </article>
+        </div>
+
+        <div className="column-side">
+          <article className="panel settings-panel">
+            <p className="panel-label">Runtime Settings</p>
+            <h2>Environment snapshot</h2>
+            <dl className="settings-list">
+              <div>
+                <dt>Storage backend</dt>
+                <dd>{data.settings.asset_storage_backend}</dd>
+              </div>
+              <div>
+                <dt>Assets path</dt>
+                <dd>{data.settings.asset_storage_dir}</dd>
+              </div>
+              <div>
+                <dt>S3 bucket</dt>
+                <dd>{data.settings.s3_bucket}</dd>
+              </div>
+              <div>
+                <dt>OpenAI mode</dt>
+                <dd>{data.settings.openai_enabled ? "Live" : "Stub / disabled"}</dd>
+              </div>
+              <div>
+                <dt>Auto publish</dt>
+                <dd>{data.settings.auto_publish_enabled ? "Enabled" : "Review first"}</dd>
+              </div>
+              <div>
+                <dt>Database</dt>
+                <dd>{data.settings.database_is_sqlite ? "SQLite dev mode" : "External database"}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Task Watch</p>
+            <h2>Failed or risky runs</h2>
+            <div className="stack">
+              {failedJobs.length ? (
+                failedJobs.map((task) => (
+                  <article className="task-row" key={task.id}>
+                    <div className="queue-header">
+                      <strong>{task.task_type}</strong>
+                      <div className={`badge ${statusTone(task.status)}`}>{task.status}</div>
+                    </div>
+                    <p className="muted">{task.error_message ?? "No error text"}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">No failed jobs right now.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Topic Intake</p>
+            <h2>Cluster-ready topics</h2>
+            <div className="stack">
+              {data.topics.slice(0, 4).map((topic) => (
+                <article className="topic-row" key={topic.id}>
+                  <strong>{topic.working_title}</strong>
+                  <span className="muted">{topic.target_query}</span>
+                  <div className={`badge ${statusTone(topic.status)}`}>{topic.status}</div>
+                </article>
+              ))}
+            </div>
+          </article>
+        </div>
+      </section>
     </main>
   );
 }
