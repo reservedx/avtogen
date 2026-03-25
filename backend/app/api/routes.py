@@ -2,15 +2,53 @@
 from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
-from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, Image, PublishingJob, QualityReport, Source
+from app.config import settings
+from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, Image, PublishingJob, QualityReport, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import ArticleRead, ArticleVersionRead, BriefRead, ImageRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SourceRead
+from app.schemas.article import ArticleRead, ArticleVersionRead, BriefRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, QualityGateService, ResearchPackBuilder, WordPressAdapter, YouTubeTranscriptProvider
 
 router = APIRouter()
+
+
+@router.get("/settings", response_model=SettingsSummaryRead)
+def get_settings_summary() -> SettingsSummaryRead:
+    return SettingsSummaryRead(
+        app_name=settings.app_name,
+        app_env=settings.app_env,
+        api_prefix=settings.api_prefix,
+        database_url=settings.database_url,
+        database_is_sqlite=settings.database_is_sqlite,
+        auto_publish_enabled=settings.auto_publish_enabled,
+        use_stub_generation=settings.use_stub_generation,
+        openai_brief_model=settings.openai_brief_model,
+        openai_draft_model=settings.openai_draft_model,
+        openai_image_model=settings.openai_image_model,
+        min_quality_score=settings.min_quality_score,
+        max_risk_score_for_auto_publish=settings.max_risk_score_for_auto_publish,
+        required_source_count=settings.required_source_count,
+        similarity_threshold=settings.similarity_threshold,
+    )
+
+
+@router.get("/metrics", response_model=MetricsRead)
+def get_metrics(db: Session = Depends(get_db)) -> MetricsRead:
+    return MetricsRead(
+        clusters_count=db.query(Cluster).count(),
+        topics_count=db.query(ContentTopic).count(),
+        articles_count=db.query(Article).count(),
+        published_articles_count=db.query(Article).filter(Article.status == "published").count(),
+        quality_reports_count=db.query(QualityReport).count(),
+        task_runs_count=db.query(TaskRun).count(),
+    )
+
+
+@router.get("/task-runs", response_model=list[TaskRunRead])
+def list_task_runs(db: Session = Depends(get_db)) -> list[TaskRun]:
+    return db.query(TaskRun).order_by(TaskRun.started_at.desc()).limit(100).all()
 
 
 @router.post("/clusters", response_model=ClusterRead)
@@ -86,7 +124,7 @@ def generate_brief(topic_id: str, db: Session = Depends(get_db)) -> dict:
     ]
     research_pack = ResearchPackBuilder().build(topic.working_title, topic.target_query, topic.audience, "informational", source_rows, [])
     generator = BriefGenerator()
-    brief = Brief(topic_id=topic.id, version=db.query(Brief).filter(Brief.topic_id == topic.id).count() + 1, brief_json=generator.generate(research_pack), prompt_snapshot=generator.prompt_snapshot(research_pack), model_name="gpt-5.4-mini")
+    brief = Brief(topic_id=topic.id, version=db.query(Brief).filter(Brief.topic_id == topic.id).count() + 1, brief_json=generator.generate(research_pack), prompt_snapshot=generator.prompt_snapshot(research_pack), model_name=settings.openai_brief_model)
     db.add(brief)
     db.commit()
     db.refresh(brief)

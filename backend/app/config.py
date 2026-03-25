@@ -1,7 +1,12 @@
 ﻿from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_SQLITE_PATH = BASE_DIR / "data" / "avtogen.db"
+DEFAULT_SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseSettings):
@@ -13,7 +18,8 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="Women Health Content Platform", alias="APP_NAME")
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
-    database_url: str = Field(default="postgresql+psycopg://postgres:postgres@localhost:5432/women_health", alias="DATABASE_URL")
+    app_env: str = Field(default="local", alias="APP_ENV")
+    database_url: str = Field(default=f"sqlite:///{DEFAULT_SQLITE_PATH.as_posix()}", alias="DATABASE_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     s3_endpoint_url: str = Field(default="http://localhost:9000", alias="S3_ENDPOINT_URL")
     s3_access_key: str = Field(default="minio", alias="S3_ACCESS_KEY")
@@ -32,6 +38,10 @@ class Settings(BaseSettings):
     wordpress_username: str = Field(default="editor", alias="WORDPRESS_USERNAME")
     wordpress_app_password: str = Field(default="changeme", alias="WORDPRESS_APP_PASSWORD")
     use_stub_generation: bool = Field(default=True, alias="USE_STUB_GENERATION")
+
+    @property
+    def database_is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
 
 
 @lru_cache

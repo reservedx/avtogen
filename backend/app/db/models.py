@@ -1,10 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -80,7 +80,7 @@ class ResearchNote(Base):
     fact_type: Mapped[str] = mapped_column(String(100))
     content: Mapped[str] = mapped_column(Text())
     confidence_score: Mapped[float] = mapped_column(Float)
-    citation_data: Mapped[dict] = mapped_column(JSONB, default=dict)
+    citation_data: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -89,7 +89,7 @@ class Brief(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("content_topics.id"))
     version: Mapped[int] = mapped_column(Integer, default=1)
-    brief_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    brief_json: Mapped[dict] = mapped_column(JSON, default=dict)
     prompt_snapshot: Mapped[str] = mapped_column(Text())
     model_name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -122,11 +122,11 @@ class ArticleVersion(Base):
     excerpt: Mapped[str | None] = mapped_column(Text(), nullable=True)
     meta_title: Mapped[str] = mapped_column(String(255))
     meta_description: Mapped[str] = mapped_column(String(500))
-    faq_json: Mapped[dict] = mapped_column(JSONB, default=dict)
-    schema_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    faq_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    schema_json: Mapped[dict] = mapped_column(JSON, default=dict)
     word_count: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(50), default="system")
-    generation_context: Mapped[dict] = mapped_column(JSONB, default=dict)
+    generation_context: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -158,7 +158,7 @@ class QualityReport(Base):
     __tablename__ = "quality_reports"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     article_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("article_versions.id"))
-    report_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    report_json: Mapped[dict] = mapped_column(JSON, default=dict)
     quality_score: Mapped[float] = mapped_column(Float)
     risk_score: Mapped[float] = mapped_column(Float)
     blocking_issues_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -183,8 +183,8 @@ class PublishingJob(Base):
     article_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("articles.id"))
     target_system: Mapped[str] = mapped_column(String(50), default="wordpress")
     status: Mapped[str] = mapped_column(String(50), default="pending")
-    request_payload: Mapped[dict] = mapped_column(JSONB, default=dict)
-    response_payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    request_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    response_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -198,8 +198,8 @@ class TaskRun(Base):
     entity_type: Mapped[str] = mapped_column(String(100))
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str] = mapped_column(String(50))
-    input_json: Mapped[dict] = mapped_column(JSONB, default=dict)
-    output_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    input_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    output_json: Mapped[dict] = mapped_column(JSON, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text(), nullable=True)

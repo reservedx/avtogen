@@ -1,7 +1,7 @@
 ﻿from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import ORMModel
 
@@ -49,7 +49,9 @@ class ArticleRead(ORMModel):
     updated_at: datetime
 
 
-class ArticleVersionRead(ORMModel):
+class ArticleVersionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
     id: UUID
     article_id: UUID
     version: int
@@ -59,7 +61,7 @@ class ArticleVersionRead(ORMModel):
     meta_title: str
     meta_description: str
     faq_json: dict
-    schema_json: dict
+    schema_payload: dict = Field(alias="schema_json")
     word_count: int
     created_by: str
     generation_context: dict
@@ -77,6 +79,45 @@ class ImageRead(ORMModel):
     height: int | None
     is_featured: bool
     created_at: datetime
+
+
+class TaskRunRead(ORMModel):
+    id: UUID
+    task_type: str
+    entity_type: str
+    entity_id: UUID
+    status: str
+    input_json: dict
+    output_json: dict
+    started_at: datetime
+    finished_at: datetime | None
+    error_message: str | None
+
+
+class MetricsRead(BaseModel):
+    clusters_count: int
+    topics_count: int
+    articles_count: int
+    published_articles_count: int
+    quality_reports_count: int
+    task_runs_count: int
+
+
+class SettingsSummaryRead(BaseModel):
+    app_name: str
+    app_env: str
+    api_prefix: str
+    database_url: str
+    database_is_sqlite: bool
+    auto_publish_enabled: bool
+    use_stub_generation: bool
+    openai_brief_model: str
+    openai_draft_model: str
+    openai_image_model: str
+    min_quality_score: float
+    max_risk_score_for_auto_publish: float
+    required_source_count: int
+    similarity_threshold: float
 
 
 class RegenerateSectionRequest(BaseModel):
