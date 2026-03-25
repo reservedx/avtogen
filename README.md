@@ -158,6 +158,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_tests.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\run_backend.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\run_frontend.ps1
 ```
+
+## OpenAI Mode
+
+By default the project runs in stub generation mode for safe local development.
+
+To enable real OpenAI generation:
+
+1. Set `OPENAI_API_KEY` in `.env`
+2. Set `USE_STUB_GENERATION=false`
+3. Keep using the same API endpoints; the gateway will switch from fallback stubs to real OpenAI calls
 ## Tests
 
 ```bash

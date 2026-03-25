@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     def database_is_sqlite(self) -> bool:
         return self.database_url.startswith("sqlite")
 
+    @property
+    def openai_enabled(self) -> bool:
+        return bool(self.openai_api_key) and self.openai_api_key != "changeme" and not self.use_stub_generation
+
 
 @lru_cache
 def get_settings() -> Settings:

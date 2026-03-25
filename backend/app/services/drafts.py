@@ -1,5 +1,7 @@
-﻿import markdown
+import markdown
 from slugify import slugify
+
+from app.schemas.generation import DraftGenerationResult
 
 
 class DraftGenerator:
@@ -26,35 +28,39 @@ class DraftGenerator:
             "## Sources\n"
             + "\n".join(f"- {source['url']}" for source in research_pack["source_summaries"])
         )
-        return {
-            "title": title,
-            "slug": slugify(title),
-            "content_markdown": body,
-            "content_html": markdown.markdown(body, extensions=["tables", "fenced_code", "toc"]),
-            "excerpt": "Educational overview of symptoms, causes, and care-seeking red flags.",
-            "meta_title": f"{title}: symptoms, causes, and when to seek care",
-            "meta_description": "Educational overview of symptoms, causes, warning signs, and when to seek medical advice.",
-            "faq_json": {
-                "items": [
-                    {
-                        "question": question,
-                        "answer": "Short evidence-aware answer for editorial review.",
-                    }
-                    for question in brief["faq_questions"]
-                ]
-            },
-            "schema_json": {"@context": "https://schema.org", "@type": "Article"},
-            "image_prompts": [
+        result = DraftGenerationResult(
+            title=title,
+            slug=slugify(title),
+            content_markdown=body,
+            excerpt="Educational overview of symptoms, causes, and care-seeking red flags.",
+            meta_title=f"{title}: symptoms, causes, and when to seek care",
+            meta_description="Educational overview of symptoms, causes, warning signs, and when to seek medical advice.",
+            faq_items=[
+                {
+                    "question": question,
+                    "answer": "Short evidence-aware answer for editorial review.",
+                }
+                for question in brief["faq_questions"]
+            ],
+            schema_payload={"@context": "https://schema.org", "@type": "Article"},
+            image_prompts=[
                 "Editorial illustration of a woman reading reliable health information in a clinic waiting area",
                 "Neutral educational diagram about urinary symptoms without gore",
                 "Calm consultation scene with patient and clinician in soft medical setting",
             ],
-            "alt_texts": [
+            alt_texts=[
                 "Woman reviewing symptom information",
                 "Educational symptom diagram",
                 "Calm patient consultation scene",
             ],
-        }
+        )
+        payload = result.model_dump()
+        payload["content_html"] = markdown.markdown(
+            payload["content_markdown"], extensions=["tables", "fenced_code", "toc"]
+        )
+        payload["faq_json"] = {"items": payload.pop("faq_items")}
+        payload["schema_json"] = payload.pop("schema_payload")
+        return payload
 
     def render_html(self, markdown_content: str) -> str:
         return markdown.markdown(markdown_content, extensions=["tables", "fenced_code", "toc"])

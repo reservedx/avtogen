@@ -10,6 +10,7 @@ def test_settings_endpoint() -> None:
         payload = response.json()
         assert payload["database_is_sqlite"] is True
         assert payload["use_stub_generation"] is True
+        assert payload["openai_enabled"] is False
 
 
 def test_metrics_endpoint() -> None:

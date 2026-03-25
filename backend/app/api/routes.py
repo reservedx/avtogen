@@ -9,7 +9,7 @@ from app.schemas.article import ArticleRead, ArticleVersionRead, BriefRead, Imag
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, QualityGateService, ResearchPackBuilder, WordPressAdapter, YouTubeTranscriptProvider
+from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, QualityGateService, ResearchPackBuilder, WordPressAdapter, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ def get_settings_summary() -> SettingsSummaryRead:
         api_prefix=settings.api_prefix,
         database_url=settings.database_url,
         database_is_sqlite=settings.database_is_sqlite,
+        openai_enabled=settings.openai_enabled,
         auto_publish_enabled=settings.auto_publish_enabled,
         use_stub_generation=settings.use_stub_generation,
         openai_brief_model=settings.openai_brief_model,
@@ -166,8 +167,10 @@ def generate_images(article_id: str, db: Session = Depends(get_db)) -> list[Imag
     existing = db.query(Image).filter(Image.article_id == article.id).all()
     if existing:
         return existing
+    gateway = OpenAIGateway()
+    generated = gateway.generate_image_variants(article.title)
     rows = []
-    for image_payload in ImageGenerator().generate(article.title):
+    for image_payload in generated or ImageGenerator().generate(article.title):
         image = Image(article_id=article.id, **image_payload)
         db.add(image)
         rows.append(image)

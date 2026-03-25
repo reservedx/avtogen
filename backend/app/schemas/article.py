@@ -109,6 +109,7 @@ class SettingsSummaryRead(BaseModel):
     api_prefix: str
     database_url: str
     database_is_sqlite: bool
+    openai_enabled: bool
     auto_publish_enabled: bool
     use_stub_generation: bool
     openai_brief_model: str
