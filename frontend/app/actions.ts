@@ -44,6 +44,32 @@ export async function bulkPublishAction(articleIds: string[]): Promise<void> {
   await runBulkAction(articleIds, "publish");
 }
 
+async function bulkModerateImages(imageIds: string[], action: "approve" | "reject" | "regenerate"): Promise<void> {
+  if (!imageIds.length) {
+    return;
+  }
+  await postApiJson("/images/bulk-moderate", {
+    image_ids: imageIds,
+    action,
+    moderator_name: "Editor",
+    notes:
+      action === "approve"
+        ? "Bulk image approval from dashboard"
+        : action === "regenerate"
+          ? "Bulk regeneration requested from dashboard"
+          : "Bulk image rejection from dashboard",
+  });
+  revalidatePath("/");
+}
+
+export async function bulkApproveImagesAction(imageIds: string[]): Promise<void> {
+  await bulkModerateImages(imageIds, "approve");
+}
+
+export async function bulkRegenerateImagesAction(imageIds: string[]): Promise<void> {
+  await bulkModerateImages(imageIds, "regenerate");
+}
+
 export async function createDemoProjectAction(): Promise<void> {
   await postApiJson("/demo/bootstrap", {
     topic_query: "frequent urination with cystitis",

@@ -13,7 +13,7 @@ from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import BulkTopicCreateRequest, BulkTopicCreateResponse, BulkTopicCreateResult, CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
-from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
+from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkImageModerationRequest, BulkImageModerationResponse, BulkImageModerationResult, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
 
 router = APIRouter()
@@ -205,6 +205,29 @@ def _approved_images_ready(images: list[Image]) -> bool:
     if not featured:
         return False
     return all(image.moderation_status == "approved" for image in images) and all(image.moderation_status == "approved" for image in featured)
+
+
+def _regenerate_image_asset(image: Image, db: Session) -> None:
+    image.moderation_status = "needs_regeneration"
+    article = db.get(Article, image.article_id)
+    if not article:
+        return
+    regenerated = ImageGenerator().generate(article.title, article.slug)
+    replacement_payload = next(
+        (
+            item for item in regenerated
+            if bool(item.get("is_featured")) == bool(image.is_featured)
+        ),
+        regenerated[0] if regenerated else None,
+    )
+    if replacement_payload:
+        image.prompt = replacement_payload["prompt"]
+        image.alt_text = replacement_payload["alt_text"]
+        image.storage_url = replacement_payload.get("storage_url")
+        image.local_path = replacement_payload.get("local_path")
+        image.width = replacement_payload.get("width")
+        image.height = replacement_payload.get("height")
+        image.moderation_status = "generated"
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
@@ -656,29 +679,50 @@ def regenerate_image(image_id: UUID, payload: ImageModerationRequest, db: Sessio
     image = db.get(Image, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    image.moderation_status = "needs_regeneration"
     image.moderation_notes = payload.notes
-    article = db.get(Article, image.article_id)
-    if article:
-        regenerated = ImageGenerator().generate(article.title, article.slug)
-        replacement_payload = next(
-            (
-                item for item in regenerated
-                if bool(item.get("is_featured")) == bool(image.is_featured)
-            ),
-            regenerated[0] if regenerated else None,
-        )
-        if replacement_payload:
-            image.prompt = replacement_payload["prompt"]
-            image.alt_text = replacement_payload["alt_text"]
-            image.storage_url = replacement_payload.get("storage_url")
-            image.local_path = replacement_payload.get("local_path")
-            image.width = replacement_payload.get("width")
-            image.height = replacement_payload.get("height")
-            image.moderation_status = "generated"
+    _regenerate_image_asset(image, db)
     db.commit()
     db.refresh(image)
     return image
+
+
+@router.post("/images/bulk-moderate", response_model=BulkImageModerationResponse)
+def bulk_moderate_images(payload: BulkImageModerationRequest, db: Session = Depends(get_db)) -> BulkImageModerationResponse:
+    supported_actions = {"approve", "reject", "regenerate"}
+    if payload.action not in supported_actions:
+        raise HTTPException(status_code=400, detail=f"Unsupported action: {payload.action}")
+    image_ids = [item.strip() for item in payload.image_ids if item.strip()]
+    if not image_ids:
+        raise HTTPException(status_code=400, detail="At least one image_id is required")
+
+    completed = 0
+    results: list[BulkImageModerationResult] = []
+    for image_id in image_ids[:50]:
+        try:
+            image = db.get(Image, UUID(image_id))
+        except ValueError:
+            image = None
+        if not image:
+            results.append(BulkImageModerationResult(image_id=image_id, status="skipped", detail="Image not found"))
+            continue
+        if payload.action == "approve":
+            image.moderation_status = "approved"
+        elif payload.action == "reject":
+            image.moderation_status = "rejected"
+        elif payload.action == "regenerate":
+            _regenerate_image_asset(image, db)
+        image.moderation_notes = payload.notes
+        completed += 1
+        results.append(
+            BulkImageModerationResult(
+                image_id=image_id,
+                article_id=str(image.article_id),
+                status="completed",
+                detail=payload.action,
+            )
+        )
+    db.commit()
+    return BulkImageModerationResponse(requested=len(image_ids[:50]), completed=completed, results=results)
 
 
 @router.post("/articles/{article_id}/regenerate-section")

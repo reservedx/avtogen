@@ -3,8 +3,10 @@ import Link from "next/link";
 import {
   bulkCreateTopicsAction,
   bulkApproveAction,
+  bulkApproveImagesAction,
   bulkGenerateImagesAction,
   bulkPublishAction,
+  bulkRegenerateImagesAction,
   bulkSubmitForReviewAction,
   createDemoProjectAction,
   runBulkFastLaneTopicsAction,
@@ -60,6 +62,7 @@ export default async function HomePage() {
   const reviewQueueIds = reviewQueue.map((article) => article.id);
   const approvedArticleIds = data.articles.filter((article) => article.status === "approved").map((article) => article.id);
   const topicQueueIds = data.topics.filter((topic) => topic.status !== "published").slice(0, 20).map((topic) => topic.id);
+  const pendingImageIds = pendingImages.map((image) => image.id);
 
   return (
     <main className="page-shell">
@@ -233,6 +236,18 @@ export default async function HomePage() {
             <p className="muted">
               Эти изображения не дадут статье уйти в публикацию, пока редактор не одобрит их или не отправит на перегенерацию.
             </p>
+            <div className="action-columns top-gap">
+              <form action={bulkApproveImagesAction.bind(null, pendingImageIds)}>
+                <button className="action-button" type="submit">
+                  Одобрить видимую очередь
+                </button>
+              </form>
+              <form action={bulkRegenerateImagesAction.bind(null, pendingImageIds)}>
+                <button className="action-button danger-button" type="submit">
+                  Перегенерировать видимую очередь
+                </button>
+              </form>
+            </div>
             <div className="stack top-gap">
               {pendingImages.length ? (
                 pendingImages.map((image) => (

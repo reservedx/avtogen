@@ -52,6 +52,26 @@ class BulkTopicFastLaneResponse(BaseModel):
     results: list[BulkTopicActionResult]
 
 
+class BulkImageModerationRequest(BaseModel):
+    image_ids: list[str]
+    action: str
+    moderator_name: str | None = None
+    notes: str | None = None
+
+
+class BulkImageModerationResult(BaseModel):
+    image_id: str
+    article_id: str | None = None
+    status: str
+    detail: str | None = None
+
+
+class BulkImageModerationResponse(BaseModel):
+    requested: int
+    completed: int
+    results: list[BulkImageModerationResult]
+
+
 class DemoBootstrapRequest(BaseModel):
     topic_query: str = "frequent urination with cystitis"
     audience: str = "general audience"
