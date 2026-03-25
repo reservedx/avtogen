@@ -81,16 +81,16 @@ function tone(status: string): string {
 
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
-    published: "опубликовано",
-    approved: "одобрено",
-    rejected: "отклонено",
-    needs_revision: "нужна доработка",
-    in_review: "на ревью",
-    draft: "черновик",
-    planned: "запланировано",
-    manual: "ручной",
-    youtube: "youtube",
-    ingested: "загружено",
+    published: "Опубликовано",
+    approved: "Одобрено",
+    rejected: "Отклонено",
+    needs_revision: "Нужна доработка",
+    in_review: "На ревью",
+    draft: "Черновик",
+    planned: "Запланировано",
+    manual: "Ручной источник",
+    youtube: "YouTube",
+    ingested: "Загружено",
   };
   return labels[status] ?? status;
 }
@@ -107,10 +107,10 @@ function noteTone(factType: string): string {
 
 function factTypeLabel(factType: string): string {
   const labels: Record<string, string> = {
-    red_flag: "красный флаг",
-    guidance: "рекомендация",
-    fact: "факт",
-    symptom: "симптом",
+    red_flag: "Красный флаг",
+    guidance: "Рекомендация",
+    fact: "Факт",
+    symptom: "Симптом",
   };
   return labels[factType] ?? factType;
 }
@@ -147,8 +147,10 @@ export default async function TopicWorkspacePage({
         <div className="hero-status">
           <div className={`badge ${tone(workspace.topic.status)}`}>{statusLabel(workspace.topic.status)}</div>
           <div className="status-stack">
-            <span>Покрытие исследования</span>
-            <strong>{workspace.sources.length} источников / {workspace.research_notes.length} заметок</strong>
+            <span>Исследовательское покрытие</span>
+            <strong>
+              {workspace.sources.length} источников / {workspace.research_notes.length} заметок
+            </strong>
           </div>
         </div>
       </section>
@@ -164,18 +166,26 @@ export default async function TopicWorkspacePage({
             </div>
             <div className="action-grid">
               <form action={collectSourcesAction.bind(null, id)}>
-                <button className="action-button" type="submit">Собрать источники</button>
+                <button className="action-button" type="submit">
+                  Собрать источники
+                </button>
               </form>
               <form action={extractResearchNotesAction.bind(null, id)}>
-                <button className="action-button" type="submit">Обновить заметки</button>
+                <button className="action-button" type="submit">
+                  Обновить заметки
+                </button>
               </form>
               <form action={generateBriefAction.bind(null, id)}>
-                <button className="action-button" type="submit">Сгенерировать ТЗ</button>
+                <button className="action-button" type="submit">
+                  Сгенерировать ТЗ
+                </button>
               </form>
             </div>
             <div className="top-gap">
               <form action={generateDraftAction.bind(null, id)}>
-                <button className="action-button accent-button" type="submit">Сгенерировать черновик статьи</button>
+                <button className="action-button accent-button" type="submit">
+                  Сгенерировать черновик статьи
+                </button>
               </form>
             </div>
           </article>
@@ -183,8 +193,8 @@ export default async function TopicWorkspacePage({
           <article className="panel">
             <div className="panel-head">
               <div>
-                <p className="panel-label">Исследовательские заметки</p>
-                <h2>Структурированные факты для ТЗ и QA</h2>
+                <p className="panel-label">Research Notes</p>
+                <h2>Структурированные факты для brief и QA</h2>
               </div>
             </div>
             <div className="stack">
@@ -193,10 +203,14 @@ export default async function TopicWorkspacePage({
                   <article className="queue-item" key={note.id}>
                     <div className="queue-header">
                       <strong>{factTypeLabel(note.fact_type)}</strong>
-                      <div className={`badge ${noteTone(note.fact_type)}`}>{Math.round(note.confidence_score * 100)}%</div>
+                      <div className={`badge ${noteTone(note.fact_type)}`}>
+                        {Math.round(note.confidence_score * 100)}%
+                      </div>
                     </div>
                     <p>{note.content}</p>
-                    <p className="muted">{note.citation_data?.title ?? note.citation_data?.url ?? "Нет данных по цитированию"}</p>
+                    <p className="muted">
+                      {note.citation_data?.title ?? note.citation_data?.url ?? "Источник для заметки не указан"}
+                    </p>
                   </article>
                 ))
               ) : (
@@ -209,33 +223,39 @@ export default async function TopicWorkspacePage({
             <div className="panel-head">
               <div>
                 <p className="panel-label">Источники</p>
-                <h2>Загруженные материалы</h2>
+                <h2>Материалы, на которых строится статья</h2>
               </div>
             </div>
             <form className="action-form topic-manual-source-form" action={addManualSourceAction.bind(null, id)}>
               <h3>Добавить источник вручную</h3>
-              <input name="title" placeholder="Название гайда или статьи" />
+              <input name="title" placeholder="Название статьи, гайда или документа" />
               <input name="url" placeholder="https://example.com/source" />
               <input name="author" placeholder="Автор или организация" />
               <input name="reliability_score" placeholder="0.8" defaultValue="0.8" />
               <textarea
                 name="raw_content"
-                placeholder="Вставь сюда краткое содержание источника, важный фрагмент или очищенные заметки"
+                placeholder="Вставь сюда краткое содержание источника, важный фрагмент или очищенные заметки."
                 rows={5}
               />
-              <button className="action-button" type="submit">Добавить источник</button>
+              <button className="action-button" type="submit">
+                Добавить источник
+              </button>
             </form>
             <div className="stack">
-              {workspace.sources.map((source) => (
-                <article className="queue-item" key={source.id}>
-                  <div className="queue-header">
-                    <strong>{source.title}</strong>
-                    <div className={`badge ${tone(source.ingestion_status)}`}>{statusLabel(source.source_type)}</div>
-                  </div>
-                  <p className="muted">{source.url}</p>
-                  <p>Надежность: {source.reliability_score ?? "неизвестно"}</p>
-                </article>
-              ))}
+              {workspace.sources.length ? (
+                workspace.sources.map((source) => (
+                  <article className="queue-item" key={source.id}>
+                    <div className="queue-header">
+                      <strong>{source.title}</strong>
+                      <div className={`badge ${tone(source.ingestion_status)}`}>{statusLabel(source.source_type)}</div>
+                    </div>
+                    <p className="muted">{source.url}</p>
+                    <p>Надёжность: {source.reliability_score ?? "неизвестно"}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="muted">Источники пока не загружены.</p>
+              )}
             </div>
           </article>
 
@@ -243,7 +263,7 @@ export default async function TopicWorkspacePage({
             <div className="panel-head">
               <div>
                 <p className="panel-label">Результаты</p>
-                <h2>Черновики, связанные с темой</h2>
+                <h2>Статьи, связанные с этой темой</h2>
               </div>
             </div>
             <div className="stack">
@@ -257,11 +277,13 @@ export default async function TopicWorkspacePage({
                       <div className={`badge ${tone(article.status)}`}>{statusLabel(article.status)}</div>
                     </div>
                     <p className="muted">{article.slug}</p>
-                    <p>Качество {article.quality_score ?? "n/a"} / Риск {article.risk_score ?? "n/a"}</p>
+                    <p>
+                      Качество {article.quality_score ?? "n/a"} / Риск {article.risk_score ?? "n/a"}
+                    </p>
                   </article>
                 ))
               ) : (
-                <p className="muted">С этой темой пока не связано ни одного черновика.</p>
+                <p className="muted">С этой темой пока не связано ни одной статьи.</p>
               )}
             </div>
           </article>
@@ -270,7 +292,7 @@ export default async function TopicWorkspacePage({
         <div className="column-side">
           <article className="panel">
             <p className="panel-label">Снимок ТЗ</p>
-            <h2>Последнее ТЗ на статью</h2>
+            <h2>Последняя версия brief</h2>
             {latestBrief ? (
               <>
                 <div className="settings-list">
@@ -295,30 +317,32 @@ export default async function TopicWorkspacePage({
                   <p className="panel-label">Обязательные разделы</p>
                   <div className="stack">
                     {(latestBrief.brief_json.required_sections ?? []).map((section) => (
-                      <div className="mini-chip" key={section}>{section}</div>
+                      <div className="mini-chip" key={section}>
+                        {section}
+                      </div>
                     ))}
                   </div>
                 </div>
               </>
             ) : (
-              <p className="muted">ТЗ пока не сгенерировано.</p>
+              <p className="muted">ТЗ для этой темы пока не создано.</p>
             )}
           </article>
 
           <article className="panel">
             <p className="panel-label">Контроль каннибализации</p>
-            <h2>Похожесть на существующий контент</h2>
+            <h2>Похожесть на уже существующий контент</h2>
             <div className="settings-list">
               <div>
                 <dt>Флаг</dt>
-                <dd>{cannibalization?.flagged ? "Нужно ревью" : "Сильного конфликта нет"}</dd>
+                <dd>{cannibalization?.flagged ? "Нужно ревью" : "Сильного конфликта не найдено"}</dd>
               </div>
               <div>
-                <dt>Макс. score</dt>
+                <dt>Максимальный score</dt>
                 <dd>{cannibalization?.max_score ?? 0}</dd>
               </div>
               <div>
-                <dt>Хеш темы</dt>
+                <dt>Хэш темы</dt>
                 <dd>{workspace.topic.cannibalization_hash ?? "Не рассчитан"}</dd>
               </div>
             </div>
