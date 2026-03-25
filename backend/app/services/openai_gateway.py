@@ -25,17 +25,20 @@ class OpenAIGateway:
     def _json_completion(self, model: str, system_prompt: str, user_prompt: str, temperature: float) -> dict | list | None:
         if self.client is None:
             return None
-        completion = self.client.chat.completions.create(
-            model=model,
-            temperature=temperature,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        content = completion.choices[0].message.content
-        return json.loads(content) if content else None
+        try:
+            completion = self.client.chat.completions.create(
+                model=model,
+                temperature=temperature,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            content = completion.choices[0].message.content
+            return json.loads(content) if content else None
+        except Exception:
+            return None
 
     def _validate(self, schema: type, payload: dict | list | None) -> dict | list | None:
         if payload is None:

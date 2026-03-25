@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -26,3 +26,11 @@ class TopicRead(ORMModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+class TopicWorkspaceRead(BaseModel):
+    topic: TopicRead
+    sources: list[dict]
+    research_notes: list[dict]
+    briefs: list[dict]
+    articles: list[dict]

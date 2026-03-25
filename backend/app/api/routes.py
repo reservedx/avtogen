@@ -5,16 +5,30 @@ from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
 from app.config import settings
-from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, Source, TaskRun
+from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
 from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
-from app.schemas.topic import TopicCreate, TopicRead
+from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
+from app.schemas.topic import TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
+from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
+
+
+def _fact_rows(db: Session, topic_id: UUID) -> list[dict]:
+    notes = db.query(ResearchNote).filter(ResearchNote.topic_id == topic_id).order_by(ResearchNote.created_at.asc()).all()
+    return [
+        {
+            "fact_type": note.fact_type,
+            "content": note.content,
+            "confidence_score": note.confidence_score,
+            "citations": [note.citation_data] if note.citation_data else [],
+        }
+        for note in notes
+    ]
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
@@ -114,6 +128,24 @@ def get_topic(topic_id: UUID, db: Session = Depends(get_db)) -> ContentTopic:
     return topic
 
 
+@router.get("/topics/{topic_id}/workspace", response_model=TopicWorkspaceRead)
+def get_topic_workspace(topic_id: UUID, db: Session = Depends(get_db)) -> TopicWorkspaceRead:
+    topic = db.get(ContentTopic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    sources = db.query(Source).filter(Source.topic_id == topic_id).order_by(Source.created_at.asc()).all()
+    research_notes = db.query(ResearchNote).filter(ResearchNote.topic_id == topic_id).order_by(ResearchNote.created_at.asc()).all()
+    briefs = db.query(Brief).filter(Brief.topic_id == topic_id).order_by(Brief.version.desc()).all()
+    articles = db.query(Article).filter(Article.topic_id == topic_id).order_by(Article.created_at.desc()).all()
+    return TopicWorkspaceRead(
+        topic=TopicRead.model_validate(topic),
+        sources=[SourceRead.model_validate(source).model_dump(mode="json") for source in sources],
+        research_notes=[ResearchNoteRead.model_validate(note).model_dump(mode="json") for note in research_notes],
+        briefs=[BriefRead.model_validate(brief).model_dump(mode="json") for brief in briefs],
+        articles=[ArticleRead.model_validate(article).model_dump(mode="json") for article in articles],
+    )
+
+
 @router.post("/topics/{topic_id}/collect-sources")
 def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
@@ -132,13 +164,36 @@ def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
             continue
         db.add(Source(topic_id=topic.id, **item))
         inserted += 1
+    db.flush()
+    topic_sources = db.query(Source).filter(Source.topic_id == topic.id).all()
+    extracted_notes = ResearchNoteExtractor().extract_for_topic(db, topic.id, topic_sources)
     db.commit()
-    return {"collected": inserted, "skipped_duplicates": len(collected) - inserted}
+    return {
+        "collected": inserted,
+        "skipped_duplicates": len(collected) - inserted,
+        "research_notes_extracted": len(extracted_notes),
+    }
 
 
 @router.get("/topics/{topic_id}/sources", response_model=list[SourceRead])
 def list_sources(topic_id: UUID, db: Session = Depends(get_db)) -> list[Source]:
     return db.query(Source).filter(Source.topic_id == topic_id).all()
+
+
+@router.post("/topics/{topic_id}/extract-research-notes", response_model=ResearchNoteExtractionResponse)
+def extract_research_notes(topic_id: UUID, db: Session = Depends(get_db)) -> ResearchNoteExtractionResponse:
+    topic = db.get(ContentTopic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    sources = db.query(Source).filter(Source.topic_id == topic.id).all()
+    notes = ResearchNoteExtractor().extract_for_topic(db, topic.id, sources)
+    db.commit()
+    return ResearchNoteExtractionResponse(extracted=len(notes))
+
+
+@router.get("/topics/{topic_id}/research-notes", response_model=list[ResearchNoteRead])
+def list_research_notes(topic_id: UUID, db: Session = Depends(get_db)) -> list[ResearchNote]:
+    return db.query(ResearchNote).filter(ResearchNote.topic_id == topic_id).order_by(ResearchNote.created_at.asc()).all()
 
 
 @router.post("/topics/{topic_id}/generate-brief")
@@ -156,7 +211,14 @@ def generate_brief(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
         }
         for source in db.query(Source).filter(Source.topic_id == topic.id).all()
     ]
-    research_pack = ResearchPackBuilder().build(topic.working_title, topic.target_query, topic.audience, "informational", source_rows, [])
+    research_pack = ResearchPackBuilder().build(
+        topic.working_title,
+        topic.target_query,
+        topic.audience,
+        "informational",
+        source_rows,
+        _fact_rows(db, topic.id),
+    )
     gateway = OpenAIGateway()
     generator = BriefGenerator()
     brief_payload = gateway.generate_brief_json(research_pack) or generator.generate(research_pack)
@@ -195,7 +257,14 @@ def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
         }
         for source in db.query(Source).filter(Source.topic_id == topic.id).all()
     ]
-    research_pack = ResearchPackBuilder().build(topic.working_title, topic.target_query, topic.audience, "informational", sources, [])
+    research_pack = ResearchPackBuilder().build(
+        topic.working_title,
+        topic.target_query,
+        topic.audience,
+        "informational",
+        sources,
+        _fact_rows(db, topic.id),
+    )
     gateway = OpenAIGateway()
     draft_generator = DraftGenerator()
     draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(brief.brief_json, research_pack)
@@ -344,7 +413,7 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
             topic.audience,
             "informational",
             source_rows,
-            [],
+            _fact_rows(db, topic.id),
         )
     report = QualityGateService().evaluate(
         version.content_markdown,

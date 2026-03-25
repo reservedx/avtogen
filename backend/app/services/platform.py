@@ -1,5 +1,6 @@
-﻿from app.services.briefs import BriefGenerator
+from app.services.briefs import BriefGenerator
 from app.services.drafts import DraftGenerator
+from app.services.facts import ResearchNoteExtractor
 from app.services.images import ImageGenerator
 from app.services.interlinking import InterlinkingService
 from app.services.openai_gateway import OpenAIGateway
@@ -16,6 +17,7 @@ from app.services.transcript import TranscriptCleaner
 __all__ = [
     "BriefGenerator",
     "DraftGenerator",
+    "ResearchNoteExtractor",
     "ImageGenerator",
     "InterlinkingService",
     "ManualSourceProvider",

@@ -1,4 +1,15 @@
-﻿from app.services.platform import BriefGenerator, DraftGenerator, InterlinkingService, ManualSourceProvider, OpenAIGateway, QualityGateService, ResearchPackBuilder, ReviewWorkflowService, YouTubeTranscriptProvider
+from app.services.platform import (
+    BriefGenerator,
+    DraftGenerator,
+    InterlinkingService,
+    ManualSourceProvider,
+    OpenAIGateway,
+    QualityGateService,
+    ResearchNoteExtractor,
+    ResearchPackBuilder,
+    ReviewWorkflowService,
+    YouTubeTranscriptProvider,
+)
 
 
 class ArticlePipeline:
@@ -6,6 +17,7 @@ class ArticlePipeline:
         self.youtube_provider = YouTubeTranscriptProvider()
         self.manual_provider = ManualSourceProvider()
         self.research_builder = ResearchPackBuilder()
+        self.fact_extractor = ResearchNoteExtractor()
         self.brief_generator = BriefGenerator()
         self.draft_generator = DraftGenerator()
         self.quality_gate = QualityGateService()
@@ -19,22 +31,26 @@ class ArticlePipeline:
             return {"status": "stopped", "reason": "no_sources"}
         facts = [
             {
-                "fact_type": "symptom",
-                "content": "Frequent urination can accompany irritation, inflammation, or other urinary issues.",
-                "confidence_score": 0.8,
-                "citations": [{"url": sources[0]["url"]}],
-            },
-            {
-                "fact_type": "red_flag",
-                "content": "Fever, blood in urine, severe pain, or pregnancy require medical review.",
-                "confidence_score": 0.9,
-                "citations": [{"url": sources[-1]["url"]}],
-            },
+                "fact_type": row["fact_type"],
+                "content": row["content"],
+                "confidence_score": row["confidence_score"],
+                "citations": [row["citation_data"]] if row.get("citation_data") else [],
+            }
+            for row in self.fact_extractor.extract_rows(sources)
         ]
         research_pack = self.research_builder.build(topic_query, topic_query, audience, "informational", sources, facts)
         brief = self.openai_gateway.generate_brief_json(research_pack) or self.brief_generator.generate(research_pack)
         draft = self.openai_gateway.generate_draft_json(brief, research_pack) or self.draft_generator.generate(brief, research_pack)
-        quality = self.quality_gate.evaluate(draft["content_markdown"], len(sources), 0, 0, True, len(draft["faq_json"]["items"]))
+        quality = self.quality_gate.evaluate(
+            draft["content_markdown"],
+            len(sources),
+            0,
+            0,
+            True,
+            len(draft["faq_json"]["items"]),
+            research_pack=research_pack,
+            brief=brief,
+        )
         needs_review = self.review_service.requires_manual_review(draft["content_markdown"]) or quality["overall_status"] != "pass"
         slug = draft.get("slug", "")
         cannibalization_flag = self.interlinking.looks_cannibalized(slug, [])

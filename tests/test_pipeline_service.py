@@ -8,3 +8,4 @@ def test_pipeline_service_preview_contains_task_outputs() -> None:
     )
     assert "quality_report" in result
     assert "internal_link_suggestions" in result
+    assert result["research_pack"]["extracted_facts"]
