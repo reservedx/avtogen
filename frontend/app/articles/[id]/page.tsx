@@ -83,8 +83,22 @@ function tone(status: string): string {
   return "warn";
 }
 
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    published: "опубликовано",
+    approved: "одобрено",
+    rejected: "отклонено",
+    needs_revision: "нужна доработка",
+    in_review: "на ревью",
+    draft: "черновик",
+    pending: "в ожидании",
+    running: "в работе",
+  };
+  return labels[status] ?? status;
+}
+
 function issueLabel(item: IssueItem): string {
-  return item.message ?? item.code ?? "Issue";
+  return item.message ?? item.code ?? "Проблема";
 }
 
 export default async function ArticleWorkspacePage({
@@ -107,19 +121,19 @@ export default async function ArticleWorkspacePage({
     <main className="page-shell">
       <section className="hero compact">
         <div className="hero-copy">
-          <p className="eyebrow">Article Workspace</p>
+          <p className="eyebrow">Рабочая область статьи</p>
           <h1>{workspace.article.title}</h1>
           <p className="hero-text">
-            <Link href="/">Back to dashboard</Link>
+            <Link href="/">Назад к дашборду</Link>
             {" / "}
             {workspace.article.slug}
           </p>
         </div>
         <div className="hero-status">
-          <div className={`badge ${tone(workspace.article.status)}`}>{workspace.article.status}</div>
+          <div className={`badge ${tone(workspace.article.status)}`}>{statusLabel(workspace.article.status)}</div>
           <div className="status-stack">
-            <span>Current version</span>
-            <strong>{workspace.current_version ? `v${workspace.current_version.version}` : "No version"}</strong>
+            <span>Текущая версия</span>
+            <strong>{workspace.current_version ? `v${workspace.current_version.version}` : "Нет версии"}</strong>
           </div>
         </div>
       </section>
@@ -129,81 +143,81 @@ export default async function ArticleWorkspacePage({
           <article className="panel">
             <div className="panel-head">
               <div>
-                <p className="panel-label">Controls</p>
-                <h2>Editorial actions</h2>
+                <p className="panel-label">Управление</p>
+                <h2>Редакторские действия</h2>
               </div>
             </div>
             <div className="action-grid">
               <form action={runQualityCheckAction.bind(null, id)}>
-                <button className="action-button" type="submit">Run QA</button>
+                <button className="action-button" type="submit">Запустить QA</button>
               </form>
               <form action={submitForReviewAction.bind(null, id)}>
-                <button className="action-button" type="submit">Submit For Review</button>
+                <button className="action-button" type="submit">Отправить на ревью</button>
               </form>
               <form action={publishArticleAction.bind(null, id)}>
-                <button className="action-button accent-button" type="submit">Publish</button>
+                <button className="action-button accent-button" type="submit">Опубликовать</button>
               </form>
             </div>
             <div className="action-columns">
               <form className="action-form" action={approveArticleAction.bind(null, id)}>
-                <h3>Approve</h3>
-                <input name="reviewer_name" placeholder="Reviewer name" defaultValue="Editor" />
-                <textarea name="notes" placeholder="Approval notes" rows={4} />
-                <button className="action-button" type="submit">Approve Article</button>
+                <h3>Одобрить</h3>
+                <input name="reviewer_name" placeholder="Имя ревьюера" defaultValue="Editor" />
+                <textarea name="notes" placeholder="Комментарий к одобрению" rows={4} />
+                <button className="action-button" type="submit">Одобрить статью</button>
               </form>
               <form className="action-form" action={rejectArticleAction.bind(null, id)}>
-                <h3>Reject</h3>
-                <input name="reviewer_name" placeholder="Reviewer name" defaultValue="Editor" />
-                <textarea name="notes" placeholder="Rejection notes" rows={4} />
-                <button className="action-button danger-button" type="submit">Reject Article</button>
+                <h3>Отклонить</h3>
+                <input name="reviewer_name" placeholder="Имя ревьюера" defaultValue="Editor" />
+                <textarea name="notes" placeholder="Причина отклонения" rows={4} />
+                <button className="action-button danger-button" type="submit">Отклонить статью</button>
               </form>
             </div>
             <form className="action-form" action={regenerateSectionAction.bind(null, id)}>
-              <h3>Regenerate Section</h3>
+              <h3>Перегенерировать раздел</h3>
               <input name="section_heading" placeholder="FAQ" defaultValue="FAQ" />
               <textarea
                 name="instructions"
-                placeholder="Explain what should change in this section"
+                placeholder="Опиши, что нужно изменить в этом разделе"
                 rows={4}
               />
-              <button className="action-button" type="submit">Create New Version</button>
+              <button className="action-button" type="submit">Создать новую версию</button>
             </form>
           </article>
 
           <article className="panel">
             <div className="panel-head">
               <div>
-                <p className="panel-label">Current Draft</p>
-                <h2>Markdown preview</h2>
+                <p className="panel-label">Текущий черновик</p>
+                <h2>Предпросмотр Markdown</h2>
               </div>
             </div>
             <div className="draft-meta">
-              <span>{workspace.current_version ? `${workspace.current_version.word_count} words` : "No word count"}</span>
-              <span>{workspace.current_version?.meta_title ?? "No meta title"}</span>
+              <span>{workspace.current_version ? `${workspace.current_version.word_count} слов` : "Нет данных по длине"}</span>
+              <span>{workspace.current_version?.meta_title ?? "Meta title отсутствует"}</span>
             </div>
             <pre className="markdown-preview">
-              {workspace.current_version?.content_markdown ?? "No content available"}
+              {workspace.current_version?.content_markdown ?? "Контент отсутствует"}
             </pre>
             {workspace.current_version ? (
               <div className="version-diff-grid">
                 <article className="diff-card">
-                  <p className="panel-label">Current version</p>
+                  <p className="panel-label">Текущая версия</p>
                   <h3>v{workspace.current_version.version}</h3>
-                  <p className="muted">{workspace.current_version.word_count} words</p>
+                  <p className="muted">{workspace.current_version.word_count} слов</p>
                   <div className="content-snippet">
                     {workspace.current_version.content_markdown.slice(0, 700)}
                   </div>
                 </article>
                 <article className="diff-card">
-                  <p className="panel-label">Previous version</p>
-                  <h3>{previousVersion ? `v${previousVersion.version}` : "No previous version"}</h3>
+                  <p className="panel-label">Предыдущая версия</p>
+                  <h3>{previousVersion ? `v${previousVersion.version}` : "Предыдущей версии нет"}</h3>
                   <p className="muted">
-                    {previousVersion ? `${previousVersion.word_count} words` : "Compare after another regeneration"}
+                    {previousVersion ? `${previousVersion.word_count} слов` : "Сравнение появится после следующей регенерации"}
                   </p>
                   <div className="content-snippet">
                     {previousVersion?.content_markdown
                       ? previousVersion.content_markdown.slice(0, 700)
-                      : "No previous markdown snapshot available in this workspace yet."}
+                      : "Предыдущий markdown-снимок пока недоступен."}
                   </div>
                 </article>
               </div>
@@ -213,18 +227,18 @@ export default async function ArticleWorkspacePage({
           <article className="panel">
             <div className="panel-head">
               <div>
-                <p className="panel-label">History</p>
-                <h2>Versions and reviews</h2>
+                <p className="panel-label">История</p>
+                <h2>Версии и ревью</h2>
               </div>
             </div>
             <div className="stack">
               {workspace.versions.map((version) => (
                 <article className="queue-item" key={version.id}>
                   <div className="queue-header">
-                    <strong>Version {version.version}</strong>
+                    <strong>Версия {version.version}</strong>
                     <div className="badge">{version.created_by}</div>
                   </div>
-                  <p>{version.word_count} words</p>
+                  <p>{version.word_count} слов</p>
                   <p className="muted">{new Date(version.created_at).toLocaleString()}</p>
                   <p className="muted">{JSON.stringify(version.generation_context)}</p>
                 </article>
@@ -237,7 +251,7 @@ export default async function ArticleWorkspacePage({
                     <strong>{review.reviewer_name}</strong>
                     <div className={`badge ${tone(review.decision)}`}>{review.decision}</div>
                   </div>
-                  <p>{review.notes ?? "No notes"}</p>
+                  <p>{review.notes ?? "Без комментариев"}</p>
                   <p className="muted">{new Date(review.created_at).toLocaleString()}</p>
                 </article>
               ))}
@@ -248,52 +262,52 @@ export default async function ArticleWorkspacePage({
         <div className="column-side">
           <article className="panel">
             <p className="panel-label">Quality Gate</p>
-            <h2>Latest report</h2>
+            <h2>Последний отчет</h2>
             <div className="settings-list">
               <div>
-                <dt>Quality score</dt>
-                <dd>{workspace.latest_quality_report?.quality_score ?? "Not run"}</dd>
+                <dt>Оценка качества</dt>
+                <dd>{workspace.latest_quality_report?.quality_score ?? "Не запускалось"}</dd>
               </div>
               <div>
-                <dt>Risk score</dt>
-                <dd>{workspace.latest_quality_report?.risk_score ?? "Not run"}</dd>
+                <dt>Оценка риска</dt>
+                <dd>{workspace.latest_quality_report?.risk_score ?? "Не запускалось"}</dd>
               </div>
               <div>
-                <dt>Status</dt>
-                <dd>{workspace.latest_quality_report?.report_json.overall_status ?? "Unknown"}</dd>
+                <dt>Статус</dt>
+                <dd>{workspace.latest_quality_report?.report_json.overall_status ?? "Неизвестно"}</dd>
               </div>
             </div>
             <div className="top-gap">
-              <p className="panel-label">Blockers</p>
+              <p className="panel-label">Блокеры</p>
               <div className="stack">
-                {blockers.length ? blockers.map((item) => <div className="mini-chip danger-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">No blockers</p>}
+                {blockers.length ? blockers.map((item) => <div className="mini-chip danger-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">Блокеров нет</p>}
               </div>
             </div>
             <div className="top-gap">
-              <p className="panel-label">Warnings</p>
+              <p className="panel-label">Предупреждения</p>
               <div className="stack">
-                {warnings.length ? warnings.map((item) => <div className="mini-chip warn-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">No warnings</p>}
+                {warnings.length ? warnings.map((item) => <div className="mini-chip warn-chip" key={issueLabel(item)}>{issueLabel(item)}</div>) : <p className="muted">Предупреждений нет</p>}
               </div>
             </div>
           </article>
 
           <article className="panel">
-            <p className="panel-label">Assets</p>
-            <h2>Images and publishing</h2>
+            <p className="panel-label">Ассеты</p>
+            <h2>Изображения и публикация</h2>
             <div className="stack">
               {workspace.images.map((image) => (
                 <article className="topic-row" key={image.id}>
-                  <strong>{image.is_featured ? "Featured image" : "Inline image"}</strong>
+                  <strong>{image.is_featured ? "Обложка" : "Встроенное изображение"}</strong>
                   <span className="muted">{image.alt_text}</span>
-                  <span className="muted">{image.storage_url ?? image.local_path ?? "No file path"}</span>
+                  <span className="muted">{image.storage_url ?? image.local_path ?? "Путь к файлу отсутствует"}</span>
                 </article>
               ))}
             </div>
             <div className="top-gap">
-              <p className="panel-label">Publishing job</p>
-              <p>{workspace.publishing_job?.status ?? "No publishing job yet"}</p>
+              <p className="panel-label">Задача публикации</p>
+              <p>{workspace.publishing_job?.status ? statusLabel(workspace.publishing_job.status) : "Задача публикации еще не создавалась"}</p>
               <p className="muted">
-                {workspace.article.published_url ?? `CMS post ${workspace.article.cms_post_id ?? "not assigned"}`}
+                {workspace.article.published_url ?? `Пост в CMS ${workspace.article.cms_post_id ?? "еще не назначен"}`}
               </p>
             </div>
           </article>
