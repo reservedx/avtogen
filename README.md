@@ -86,7 +86,7 @@ Implemented in scaffold form:
 - research pack builder
 - brief generator scaffold
 - draft generator scaffold
-- image prompt generation plus local PNG asset persistence
+- image prompt generation plus local WebP asset persistence
 - markdown to HTML rendering
 - quality gate rules
 - interlinking and cannibalization placeholder service
@@ -121,6 +121,9 @@ Implemented in scaffold form:
 - `GET /api/v1/articles`
 - `GET /api/v1/articles/{id}/workspace`
 - `POST /api/v1/articles/{id}/generate-images`
+- `POST /api/v1/images/{id}/approve`
+- `POST /api/v1/images/{id}/reject`
+- `POST /api/v1/images/{id}/regenerate`
 - `POST /api/v1/articles/{id}/regenerate-section`
 - `POST /api/v1/articles/{id}/save-manual-version`
 - `GET /api/v1/articles/{id}`
@@ -135,6 +138,11 @@ Implemented in scaffold form:
 - `GET /api/v1/articles/{id}/publishing-status`
 - `POST /api/v1/pipeline/run`
 - `POST /api/v1/pipeline/run-bulk`
+
+Publishing rule:
+
+- articles cannot be published until all generated images are manually approved
+- image moderation is mandatory even when article text goes through the fast lane
 
 ## Run Locally
 

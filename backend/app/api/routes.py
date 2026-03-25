@@ -8,7 +8,7 @@ from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
@@ -191,11 +191,20 @@ def _ensure_article_images(db: Session, article: Article) -> list[Image]:
         return existing
     created: list[Image] = []
     for image_payload in ImageGenerator().generate(article.title, article.slug):
-        image = Image(article_id=article.id, **image_payload)
+        image = Image(article_id=article.id, moderation_status="generated", **image_payload)
         db.add(image)
         created.append(image)
     db.flush()
     return created
+
+
+def _approved_images_ready(images: list[Image]) -> bool:
+    if not images:
+        return False
+    featured = [image for image in images if image.is_featured]
+    if not featured:
+        return False
+    return all(image.moderation_status == "approved" for image in images) and all(image.moderation_status == "approved" for image in featured)
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
@@ -618,6 +627,60 @@ def generate_images(article_id: UUID, db: Session = Depends(get_db)) -> list[Ima
     return rows
 
 
+@router.post("/images/{image_id}/approve", response_model=ImageRead)
+def approve_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
+    image = db.get(Image, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    image.moderation_status = "approved"
+    image.moderation_notes = payload.notes
+    db.commit()
+    db.refresh(image)
+    return image
+
+
+@router.post("/images/{image_id}/reject", response_model=ImageRead)
+def reject_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
+    image = db.get(Image, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    image.moderation_status = "rejected"
+    image.moderation_notes = payload.notes
+    db.commit()
+    db.refresh(image)
+    return image
+
+
+@router.post("/images/{image_id}/regenerate", response_model=ImageRead)
+def regenerate_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
+    image = db.get(Image, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    image.moderation_status = "needs_regeneration"
+    image.moderation_notes = payload.notes
+    article = db.get(Article, image.article_id)
+    if article:
+        regenerated = ImageGenerator().generate(article.title, article.slug)
+        replacement_payload = next(
+            (
+                item for item in regenerated
+                if bool(item.get("is_featured")) == bool(image.is_featured)
+            ),
+            regenerated[0] if regenerated else None,
+        )
+        if replacement_payload:
+            image.prompt = replacement_payload["prompt"]
+            image.alt_text = replacement_payload["alt_text"]
+            image.storage_url = replacement_payload.get("storage_url")
+            image.local_path = replacement_payload.get("local_path")
+            image.width = replacement_payload.get("width")
+            image.height = replacement_payload.get("height")
+            image.moderation_status = "generated"
+    db.commit()
+    db.refresh(image)
+    return image
+
+
 @router.post("/articles/{article_id}/regenerate-section")
 def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
@@ -794,6 +857,9 @@ def bulk_article_action(payload: BulkArticleActionRequest, db: Session = Depends
                     continue
                 version = db.get(ArticleVersion, article.current_version_id)
                 images = db.query(Image).filter(Image.article_id == article.id).all()
+                if not _approved_images_ready(images):
+                    results.append(BulkActionResult(article_id=article_id, status="skipped", detail="Approved images are required before publishing"))
+                    continue
                 payload_data = {"title": version.meta_title or article.title, "slug": article.slug, "excerpt": version.excerpt, "status": "draft", "image_count": len(images)}
                 job = PublishingJob(article_id=article.id, target_system="wordpress", status="running", request_payload=payload_data, response_payload={})
                 db.add(job)
@@ -868,6 +934,8 @@ def publish_article(article_id: UUID, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=400, detail="Quality report required before publishing")
     version = db.get(ArticleVersion, article.current_version_id)
     images = db.query(Image).filter(Image.article_id == article.id).all()
+    if not _approved_images_ready(images):
+        raise HTTPException(status_code=400, detail="Approved images are required before publishing")
     payload = {"title": version.meta_title or article.title, "slug": article.slug, "excerpt": version.excerpt, "status": "draft", "image_count": len(images)}
     job = PublishingJob(article_id=article.id, target_system="wordpress", status="running", request_payload=payload, response_payload={})
     db.add(job)

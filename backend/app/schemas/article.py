@@ -78,6 +78,8 @@ class ImageRead(ORMModel):
     width: int | None
     height: int | None
     is_featured: bool
+    moderation_status: str
+    moderation_notes: str | None
     created_at: datetime
 
 
@@ -166,6 +168,11 @@ class ManualArticleVersionCreate(BaseModel):
     content_markdown: str
     editor_name: str = Field(default="Editor")
     change_note: str | None = None
+
+
+class ImageModerationRequest(BaseModel):
+    moderator_name: str = Field(default="Editor")
+    notes: str | None = None
 
 
 class QualityReportRead(ORMModel):

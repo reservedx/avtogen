@@ -80,3 +80,25 @@ export async function saveManualVersionAction(articleId: string, formData: FormD
   });
   refreshArticlePaths(articleId);
 }
+
+async function moderateImage(articleId: string, imageId: string, action: "approve" | "reject" | "regenerate", formData: FormData): Promise<void> {
+  const moderatorName = String(formData.get("moderator_name") || "Editor");
+  const notes = String(formData.get("notes") || "");
+  await postApiJson(`/images/${imageId}/${action}`, {
+    moderator_name: moderatorName,
+    notes,
+  });
+  refreshArticlePaths(articleId);
+}
+
+export async function approveImageAction(articleId: string, imageId: string, formData: FormData): Promise<void> {
+  await moderateImage(articleId, imageId, "approve", formData);
+}
+
+export async function rejectImageAction(articleId: string, imageId: string, formData: FormData): Promise<void> {
+  await moderateImage(articleId, imageId, "reject", formData);
+}
+
+export async function regenerateImageAction(articleId: string, imageId: string, formData: FormData): Promise<void> {
+  await moderateImage(articleId, imageId, "regenerate", formData);
+}

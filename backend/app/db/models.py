@@ -141,6 +141,8 @@ class Image(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    moderation_status: Mapped[str] = mapped_column(String(50), default="generated")
+    moderation_notes: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
