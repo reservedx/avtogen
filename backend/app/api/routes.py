@@ -12,7 +12,7 @@ from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import BulkPipelineRunRequest, PipelineRunRequest, ReviewDecisionRequest
-from app.services.platform import BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
+from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchPackBuilder, YouTubeTranscriptProvider
 
 router = APIRouter()
 
@@ -247,7 +247,11 @@ def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: 
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
     current = db.get(ArticleVersion, article.current_version_id)
-    updated_markdown = current.content_markdown.replace(payload.section_heading, f"{payload.section_heading}\n\nUpdated for editorial revision. {payload.instructions or ''}".strip())
+    updated_markdown = ArticleSectionRegenerator().regenerate(
+        current.content_markdown,
+        payload.section_heading,
+        payload.instructions,
+    )
     renderer = DraftGenerator()
     new_version = ArticleVersion(article_id=article.id, version=db.query(ArticleVersion).filter(ArticleVersion.article_id == article.id).count() + 1, content_markdown=updated_markdown, content_html=renderer.render_html(updated_markdown), excerpt=current.excerpt, meta_title=current.meta_title, meta_description=current.meta_description, faq_json=current.faq_json, schema_json=current.schema_json, word_count=len(updated_markdown.split()), created_by="system", generation_context={"action": "regenerate_section", "section_heading": payload.section_heading})
     db.add(new_version)

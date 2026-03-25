@@ -135,7 +135,7 @@ class SettingsSummaryRead(BaseModel):
 
 
 class RegenerateSectionRequest(BaseModel):
-    section_heading: str = Field(default="## FAQ")
+    section_heading: str = Field(default="FAQ")
     instructions: str | None = None
 
 

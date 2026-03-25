@@ -8,6 +8,7 @@ from app.services.providers import ManualSourceProvider, WordPressAdapter, YouTu
 from app.services.quality import QualityGateService
 from app.services.research import ResearchPackBuilder
 from app.services.review import ReviewWorkflowService
+from app.services.sections import ArticleSectionRegenerator
 from app.services.storage import AssetStorageService
 from app.services.task_runs import TaskRunRecorder
 from app.services.transcript import TranscriptCleaner
@@ -24,6 +25,7 @@ __all__ = [
     "ResearchPackBuilder",
     "ReviewWorkflowService",
     "AssetStorageService",
+    "ArticleSectionRegenerator",
     "TaskRunRecorder",
     "TranscriptCleaner",
     "WordPressAdapter",
