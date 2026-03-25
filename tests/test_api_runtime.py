@@ -23,3 +23,12 @@ def test_metrics_endpoint() -> None:
         payload = response.json()
         assert "topics_count" in payload
         assert "task_runs_count" in payload
+
+
+def test_analytics_summary_endpoint() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/analytics/summary")
+        assert response.status_code == 200
+        payload = response.json()
+        assert "article_status_counts" in payload
+        assert "average_quality_score" in payload

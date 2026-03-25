@@ -1,13 +1,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import ResearchNoteExtractionResponse, ResearchNoteRead
@@ -64,6 +65,31 @@ def get_metrics(db: Session = Depends(get_db)) -> MetricsRead:
         published_articles_count=db.query(Article).filter(Article.status == "published").count(),
         quality_reports_count=db.query(QualityReport).count(),
         task_runs_count=db.query(TaskRun).count(),
+    )
+
+
+@router.get("/analytics/summary", response_model=AnalyticsSummaryRead)
+def get_analytics_summary(db: Session = Depends(get_db)) -> AnalyticsSummaryRead:
+    article_status_counts = [
+        {"key": str(status), "count": int(count)}
+        for status, count in db.query(Article.status, func.count(Article.id)).group_by(Article.status).all()
+    ]
+    source_type_counts = [
+        {"key": str(source_type), "count": int(count)}
+        for source_type, count in db.query(Source.source_type, func.count(Source.id)).group_by(Source.source_type).all()
+    ]
+    failed_task_counts = [
+        {"key": str(task_type), "count": int(count)}
+        for task_type, count in db.query(TaskRun.task_type, func.count(TaskRun.id)).filter(TaskRun.status == "failed").group_by(TaskRun.task_type).all()
+    ]
+    avg_quality = db.query(func.avg(Article.quality_score)).scalar()
+    avg_risk = db.query(func.avg(Article.risk_score)).scalar()
+    return AnalyticsSummaryRead(
+        article_status_counts=article_status_counts,
+        source_type_counts=source_type_counts,
+        failed_task_counts=failed_task_counts,
+        average_quality_score=round(float(avg_quality), 2) if avg_quality is not None else None,
+        average_risk_score=round(float(avg_risk), 2) if avg_risk is not None else None,
     )
 
 

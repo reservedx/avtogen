@@ -67,6 +67,25 @@ export default async function HomePage() {
         </article>
       </section>
 
+      <section className="metrics-grid">
+        <article className="metric-card">
+          <span>Avg quality</span>
+          <strong>{data.analytics.average_quality_score ?? "n/a"}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Avg risk</span>
+          <strong>{data.analytics.average_risk_score ?? "n/a"}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Main source mix</span>
+          <strong>{data.analytics.source_type_counts[0]?.key ?? "n/a"}</strong>
+        </article>
+        <article className="metric-card">
+          <span>Top failed task</span>
+          <strong>{data.analytics.failed_task_counts[0]?.key ?? "none"}</strong>
+        </article>
+      </section>
+
       <section className="dashboard-grid">
         <div className="column-main">
           <article className="panel spotlight">
@@ -210,6 +229,29 @@ export default async function HomePage() {
               ) : (
                 <p className="muted">No failed jobs right now.</p>
               )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Analytics</p>
+            <h2>Status and source mix</h2>
+            <div className="stack">
+              {data.analytics.article_status_counts.map((item) => (
+                <article className="task-row" key={item.key}>
+                  <div className="queue-header">
+                    <strong>{item.key}</strong>
+                    <div className="badge">{item.count}</div>
+                  </div>
+                </article>
+              ))}
+              {data.analytics.source_type_counts.map((item) => (
+                <article className="task-row" key={`source-${item.key}`}>
+                  <div className="queue-header">
+                    <strong>{item.key} sources</strong>
+                    <div className="badge">{item.count}</div>
+                  </div>
+                </article>
+              ))}
             </div>
           </article>
 

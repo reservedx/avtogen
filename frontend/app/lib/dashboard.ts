@@ -21,6 +21,19 @@ type Settings = {
   auto_publish_enabled: boolean;
 };
 
+type CountBucket = {
+  key: string;
+  count: number;
+};
+
+type AnalyticsSummary = {
+  article_status_counts: CountBucket[];
+  source_type_counts: CountBucket[];
+  failed_task_counts: CountBucket[];
+  average_quality_score: number | null;
+  average_risk_score: number | null;
+};
+
 type Topic = {
   id: string;
   working_title: string;
@@ -64,6 +77,7 @@ type TaskRun = {
 export type DashboardData = {
   metrics: Metrics;
   settings: Settings;
+  analytics: AnalyticsSummary;
   topics: Topic[];
   articles: Article[];
   leadWorkspace: ArticleWorkspace | null;
@@ -92,6 +106,19 @@ function fallbackData(): DashboardData {
       openai_enabled: false,
       use_stub_generation: true,
       auto_publish_enabled: false,
+    },
+    analytics: {
+      article_status_counts: [
+        { key: "in_review", count: 4 },
+        { key: "published", count: 5 },
+      ],
+      source_type_counts: [
+        { key: "youtube", count: 9 },
+        { key: "manual", count: 6 },
+      ],
+      failed_task_counts: [{ key: "publish_article", count: 1 }],
+      average_quality_score: 83,
+      average_risk_score: 24,
     },
     topics: [
       {
@@ -174,12 +201,13 @@ function fallbackData(): DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [articles, metrics, settings, topics, taskRuns] = await Promise.all([
+  const [articles, metrics, settings, topics, taskRuns, analytics] = await Promise.all([
     fetchApiJson<Article[]>("/articles"),
     fetchApiJson<Metrics>("/metrics"),
     fetchApiJson<Settings>("/settings"),
     fetchApiJson<Topic[]>("/topics"),
     fetchApiJson<TaskRun[]>("/task-runs"),
+    fetchApiJson<AnalyticsSummary>("/analytics/summary"),
   ]);
 
   if (!metrics || !settings) {
@@ -195,6 +223,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     apiOnline: true,
     metrics,
     settings,
+    analytics: analytics ?? fallbackData().analytics,
     topics: topics ?? [],
     articles: articleRows,
     leadWorkspace,

@@ -113,6 +113,19 @@ class MetricsRead(BaseModel):
     task_runs_count: int
 
 
+class CountBucketRead(BaseModel):
+    key: str
+    count: int
+
+
+class AnalyticsSummaryRead(BaseModel):
+    article_status_counts: list[CountBucketRead]
+    source_type_counts: list[CountBucketRead]
+    failed_task_counts: list[CountBucketRead]
+    average_quality_score: float | None
+    average_risk_score: float | None
+
+
 class SettingsSummaryRead(BaseModel):
     app_name: str
     app_env: str
