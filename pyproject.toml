@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "women-health-content-platform"
+version = "0.1.0"
+description = "AI-assisted editorial platform for YMYL-safe women's health content."
+authors = ["Codex"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.116.0"
+uvicorn = {extras = ["standard"], version = "^0.35.0"}
+sqlalchemy = "^2.0.38"
+alembic = "^1.16.0"
+psycopg = {extras = ["binary"], version = "^3.2.6"}
+pydantic-settings = "^2.10.1"
+structlog = "^25.4.0"
+redis = "^6.0.0"
+dramatiq = {extras = ["redis"], version = "^1.18.0"}
+httpx = "^0.28.1"
+tenacity = "^9.1.2"
+markdown = "^3.8"
+python-slugify = "^8.0.4"
+boto3 = "^1.38.36"
+openai = "^1.76.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+pytest-asyncio = "^1.0.0"
+pytest-cov = "^6.2.1"
+ruff = "^0.12.0"
+mypy = "^1.16.1"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"

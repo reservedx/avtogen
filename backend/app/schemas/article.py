@@ -1,0 +1,108 @@
+﻿from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+from app.schemas.common import ORMModel
+
+
+class SourceRead(ORMModel):
+    id: UUID
+    topic_id: UUID
+    source_type: str
+    url: str
+    title: str
+    author: str | None
+    published_at: datetime | None
+    transcript_text: str | None
+    raw_content: str | None
+    cleaned_content: str | None
+    reliability_score: float | None
+    ingestion_status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class BriefRead(ORMModel):
+    id: UUID
+    topic_id: UUID
+    version: int
+    brief_json: dict
+    prompt_snapshot: str
+    model_name: str
+    created_at: datetime
+
+
+class ArticleRead(ORMModel):
+    id: UUID
+    topic_id: UUID
+    brief_id: UUID
+    current_version_id: UUID | None
+    title: str
+    slug: str
+    status: str
+    quality_score: float | None
+    risk_score: float | None
+    cms_post_id: str | None
+    published_url: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArticleVersionRead(ORMModel):
+    id: UUID
+    article_id: UUID
+    version: int
+    content_markdown: str
+    content_html: str
+    excerpt: str | None
+    meta_title: str
+    meta_description: str
+    faq_json: dict
+    schema_json: dict
+    word_count: int
+    created_by: str
+    generation_context: dict
+    created_at: datetime
+
+
+class ImageRead(ORMModel):
+    id: UUID
+    article_id: UUID
+    prompt: str
+    alt_text: str
+    storage_url: str | None
+    local_path: str | None
+    width: int | None
+    height: int | None
+    is_featured: bool
+    created_at: datetime
+
+
+class RegenerateSectionRequest(BaseModel):
+    section_heading: str = Field(default="## FAQ")
+    instructions: str | None = None
+
+
+class QualityReportRead(ORMModel):
+    id: UUID
+    article_version_id: UUID
+    report_json: dict
+    quality_score: float
+    risk_score: float
+    blocking_issues_count: int
+    warning_count: int
+    created_at: datetime
+
+
+class PublishingJobRead(ORMModel):
+    id: UUID
+    article_id: UUID
+    target_system: str
+    status: str
+    request_payload: dict
+    response_payload: dict
+    retry_count: int
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
