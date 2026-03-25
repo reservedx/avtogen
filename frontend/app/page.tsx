@@ -167,7 +167,7 @@ export default async function HomePage() {
             )}
           </article>
 
-          <article className="panel">
+          <article className="panel" id="article-queue">
             <div className="panel-head">
               <div>
                 <p className="panel-label">Очередь статей</p>
@@ -226,7 +226,7 @@ export default async function HomePage() {
             </div>
           </article>
 
-          <article className="panel">
+          <article className="panel" id="image-review">
             <div className="panel-head">
               <div>
                 <p className="panel-label">Очередь изображений</p>
@@ -269,7 +269,7 @@ export default async function HomePage() {
             </div>
           </article>
 
-          <article className="panel">
+          <article className="panel" id="topic-import">
             <div className="panel-head">
               <div>
                 <p className="panel-label">Fast Lane</p>
