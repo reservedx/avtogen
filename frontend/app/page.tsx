@@ -81,11 +81,21 @@ export default async function HomePage() {
                   <span className="kicker">Readiness</span>
                   <p>{scoreLabel(leadArticle.quality_score, "quality")}</p>
                   <p>{scoreLabel(leadArticle.risk_score, "risk")}</p>
+                  <p className="muted">
+                    {data.leadWorkspace?.current_version
+                      ? `Version ${data.leadWorkspace.current_version.version}, ${data.leadWorkspace.current_version.word_count} words`
+                      : "No version metadata yet"}
+                  </p>
                   <p className="muted">Slug: {leadArticle.slug}</p>
                 </div>
                 <div className="story-card">
                   <span className="kicker">Publishing</span>
                   <p>{leadArticle.cms_post_id ? `Remote post #${leadArticle.cms_post_id}` : "Not synced to CMS"}</p>
+                  <p className="muted">
+                    {data.leadWorkspace
+                      ? `${data.leadWorkspace.images.length} images, ${data.leadWorkspace.editorial_reviews.length} reviews, job ${data.leadWorkspace.publishing_job?.status ?? "pending"}`
+                      : "Workspace details unavailable"}
+                  </p>
                   <p className="muted">
                     {leadArticle.published_url ? leadArticle.published_url : "Waiting for approval and publish step."}
                   </p>

@@ -39,6 +39,16 @@ type Article = {
   published_url: string | null;
 };
 
+type ArticleWorkspace = {
+  current_version: {
+    version: number;
+    word_count: number;
+  } | null;
+  images: Array<{ id: string }>;
+  editorial_reviews: Array<{ id: string; decision: string }>;
+  publishing_job: { status: string } | null;
+};
+
 type TaskRun = {
   id: string;
   task_type: string;
@@ -54,6 +64,7 @@ export type DashboardData = {
   settings: Settings;
   topics: Topic[];
   articles: Article[];
+  leadWorkspace: ArticleWorkspace | null;
   taskRuns: TaskRun[];
   apiOnline: boolean;
 };
@@ -102,14 +113,14 @@ function fallbackData(): DashboardData {
         working_title: "Frequent urination with cystitis",
         audience: "general audience",
         status: "in_review",
-        target_query: "частое мочеиспускание при цистите",
+        target_query: "frequent urination with cystitis",
       },
       {
         id: "mock-topic-2",
         working_title: "Burning during urination",
         audience: "general audience",
         status: "needs_revision",
-        target_query: "жжение при мочеиспускании",
+        target_query: "burning during urination",
       },
     ],
     articles: [
@@ -147,6 +158,12 @@ function fallbackData(): DashboardData {
         published_url: "https://example.com/night-urination-overview",
       },
     ],
+    leadWorkspace: {
+      current_version: { version: 3, word_count: 1985 },
+      images: [{ id: "img-1" }, { id: "img-2" }, { id: "img-3" }],
+      editorial_reviews: [{ id: "rev-1", decision: "approved" }],
+      publishing_job: { status: "queued" },
+    },
     taskRuns: [
       {
         id: "task-1",
@@ -171,7 +188,8 @@ function fallbackData(): DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [metrics, settings, topics, taskRuns] = await Promise.all([
+  const [articles, metrics, settings, topics, taskRuns] = await Promise.all([
+    fetchJson<Article[]>("/articles"),
     fetchJson<Metrics>("/metrics"),
     fetchJson<Settings>("/settings"),
     fetchJson<Topic[]>("/topics"),
@@ -182,13 +200,18 @@ export async function getDashboardData(): Promise<DashboardData> {
     return fallbackData();
   }
 
-  const articles = deriveArticlesFromTopics(topics ?? []);
+  const articleRows = articles && articles.length ? articles : deriveArticlesFromTopics(topics ?? []);
+  const leadWorkspace = articleRows[0]
+    ? await fetchJson<ArticleWorkspace>(`/articles/${articleRows[0].id}/workspace`)
+    : null;
+
   return {
     apiOnline: true,
     metrics,
     settings,
     topics: topics ?? [],
-    articles,
+    articles: articleRows,
+    leadWorkspace,
     taskRuns: taskRuns ?? [],
   };
 }

@@ -1,11 +1,13 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, PublishingJob, QualityReport, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import ArticleRead, ArticleVersionRead, BriefRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageRead, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.topic import TopicCreate, TopicRead
 from app.schemas.workflow import PipelineRunRequest, ReviewDecisionRequest
@@ -84,7 +86,7 @@ def list_topics(db: Session = Depends(get_db)) -> list[ContentTopic]:
 
 
 @router.get("/topics/{topic_id}", response_model=TopicRead)
-def get_topic(topic_id: str, db: Session = Depends(get_db)) -> ContentTopic:
+def get_topic(topic_id: UUID, db: Session = Depends(get_db)) -> ContentTopic:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -92,7 +94,7 @@ def get_topic(topic_id: str, db: Session = Depends(get_db)) -> ContentTopic:
 
 
 @router.post("/topics/{topic_id}/collect-sources")
-def collect_sources(topic_id: str, db: Session = Depends(get_db)) -> dict:
+def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -107,12 +109,12 @@ def collect_sources(topic_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/topics/{topic_id}/sources", response_model=list[SourceRead])
-def list_sources(topic_id: str, db: Session = Depends(get_db)) -> list[Source]:
+def list_sources(topic_id: UUID, db: Session = Depends(get_db)) -> list[Source]:
     return db.query(Source).filter(Source.topic_id == topic_id).all()
 
 
 @router.post("/topics/{topic_id}/generate-brief")
-def generate_brief(topic_id: str, db: Session = Depends(get_db)) -> dict:
+def generate_brief(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -144,12 +146,12 @@ def generate_brief(topic_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/topics/{topic_id}/briefs", response_model=list[BriefRead])
-def list_briefs(topic_id: str, db: Session = Depends(get_db)) -> list[Brief]:
+def list_briefs(topic_id: UUID, db: Session = Depends(get_db)) -> list[Brief]:
     return db.query(Brief).filter(Brief.topic_id == topic_id).order_by(Brief.version.desc()).all()
 
 
 @router.post("/topics/{topic_id}/generate-draft", response_model=ArticleRead)
-def generate_draft(topic_id: str, db: Session = Depends(get_db)) -> Article:
+def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -165,20 +167,10 @@ def generate_draft(topic_id: str, db: Session = Depends(get_db)) -> Article:
         }
         for source in db.query(Source).filter(Source.topic_id == topic.id).all()
     ]
-    research_pack = ResearchPackBuilder().build(
-        topic.working_title,
-        topic.target_query,
-        topic.audience,
-        "informational",
-        sources,
-        [],
-    )
+    research_pack = ResearchPackBuilder().build(topic.working_title, topic.target_query, topic.audience, "informational", sources, [])
     gateway = OpenAIGateway()
     draft_generator = DraftGenerator()
-    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(
-        brief.brief_json,
-        research_pack,
-    )
+    draft = gateway.generate_draft_json(brief.brief_json, research_pack) or draft_generator.generate(brief.brief_json, research_pack)
     article = Article(topic_id=topic.id, brief_id=brief.id, title=draft["title"], slug=draft["slug"], status="draft")
     db.add(article)
     db.flush()
@@ -210,7 +202,7 @@ def generate_draft(topic_id: str, db: Session = Depends(get_db)) -> Article:
 
 
 @router.post("/articles/{article_id}/generate-images", response_model=list[ImageRead])
-def generate_images(article_id: str, db: Session = Depends(get_db)) -> list[Image]:
+def generate_images(article_id: UUID, db: Session = Depends(get_db)) -> list[Image]:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -229,7 +221,7 @@ def generate_images(article_id: str, db: Session = Depends(get_db)) -> list[Imag
 
 
 @router.post("/articles/{article_id}/regenerate-section")
-def regenerate_section(article_id: str, payload: RegenerateSectionRequest, db: Session = Depends(get_db)) -> dict:
+def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -242,24 +234,58 @@ def regenerate_section(article_id: str, payload: RegenerateSectionRequest, db: S
     article.current_version_id = new_version.id
     article.status = "needs_revision"
     db.commit()
-    return {"article_id": article_id, "new_version": new_version.version}
+    return {"article_id": str(article_id), "new_version": new_version.version}
 
 
 @router.get("/articles/{article_id}", response_model=ArticleRead)
-def get_article(article_id: str, db: Session = Depends(get_db)) -> Article:
+def get_article(article_id: UUID, db: Session = Depends(get_db)) -> Article:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
 
 
+@router.get("/articles", response_model=list[ArticleRead])
+def list_articles(db: Session = Depends(get_db)) -> list[Article]:
+    return db.query(Article).order_by(Article.updated_at.desc()).all()
+
+
+@router.get("/articles/{article_id}/workspace", response_model=ArticleWorkspaceRead)
+def get_article_workspace(article_id: UUID, db: Session = Depends(get_db)) -> ArticleWorkspaceRead:
+    article = db.get(Article, article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    versions = db.query(ArticleVersion).filter(ArticleVersion.article_id == article_id).order_by(ArticleVersion.version.desc()).all()
+    images = db.query(Image).filter(Image.article_id == article_id).order_by(Image.created_at.asc()).all()
+    current_version = db.get(ArticleVersion, article.current_version_id) if article.current_version_id else None
+    latest_quality_report = None
+    if article.current_version_id:
+        latest_quality_report = db.query(QualityReport).filter(QualityReport.article_version_id == article.current_version_id).order_by(QualityReport.created_at.desc()).first()
+    publishing_job = db.query(PublishingJob).filter(PublishingJob.article_id == article_id).order_by(PublishingJob.created_at.desc()).first()
+    editorial_reviews = db.query(EditorialReview).filter(EditorialReview.article_id == article_id).order_by(EditorialReview.created_at.desc()).all()
+    return ArticleWorkspaceRead(
+        article=ArticleRead.model_validate(article),
+        current_version=ArticleVersionRead.model_validate(current_version) if current_version else None,
+        versions=[ArticleVersionRead.model_validate(version) for version in versions],
+        images=[ImageRead.model_validate(image) for image in images],
+        latest_quality_report=QualityReportRead.model_validate(latest_quality_report) if latest_quality_report else None,
+        publishing_job=PublishingJobRead.model_validate(publishing_job) if publishing_job else None,
+        editorial_reviews=[EditorialReviewRead.model_validate(review) for review in editorial_reviews],
+    )
+
+
 @router.get("/articles/{article_id}/versions", response_model=list[ArticleVersionRead])
-def list_versions(article_id: str, db: Session = Depends(get_db)) -> list[ArticleVersion]:
+def list_versions(article_id: UUID, db: Session = Depends(get_db)) -> list[ArticleVersion]:
     return db.query(ArticleVersion).filter(ArticleVersion.article_id == article_id).order_by(ArticleVersion.version.desc()).all()
 
 
+@router.get("/articles/{article_id}/editorial-reviews", response_model=list[EditorialReviewRead])
+def list_editorial_reviews(article_id: UUID, db: Session = Depends(get_db)) -> list[EditorialReview]:
+    return db.query(EditorialReview).filter(EditorialReview.article_id == article_id).order_by(EditorialReview.created_at.desc()).all()
+
+
 @router.post("/articles/{article_id}/run-quality-check")
-def run_quality_check(article_id: str, db: Session = Depends(get_db)) -> dict:
+def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -275,7 +301,7 @@ def run_quality_check(article_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/articles/{article_id}/quality-report", response_model=QualityReportRead)
-def get_quality_report(article_id: str, db: Session = Depends(get_db)) -> QualityReport:
+def get_quality_report(article_id: UUID, db: Session = Depends(get_db)) -> QualityReport:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -286,7 +312,7 @@ def get_quality_report(article_id: str, db: Session = Depends(get_db)) -> Qualit
 
 
 @router.post("/articles/{article_id}/submit-for-review")
-def submit_for_review(article_id: str, db: Session = Depends(get_db)) -> dict:
+def submit_for_review(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -296,45 +322,29 @@ def submit_for_review(article_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/articles/{article_id}/approve")
-def approve_article(article_id: str, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
+def approve_article(article_id: UUID, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     article.status = "approved"
-    db.add(
-        EditorialReview(
-            article_id=article.id,
-            article_version_id=article.current_version_id,
-            reviewer_name=payload.reviewer_name,
-            decision="approved",
-            notes=payload.notes,
-        )
-    )
+    db.add(EditorialReview(article_id=article.id, article_version_id=article.current_version_id, reviewer_name=payload.reviewer_name, decision="approved", notes=payload.notes))
     db.commit()
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
 
 @router.post("/articles/{article_id}/reject")
-def reject_article(article_id: str, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
+def reject_article(article_id: UUID, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     article.status = "rejected"
-    db.add(
-        EditorialReview(
-            article_id=article.id,
-            article_version_id=article.current_version_id,
-            reviewer_name=payload.reviewer_name,
-            decision="rejected",
-            notes=payload.notes,
-        )
-    )
+    db.add(EditorialReview(article_id=article.id, article_version_id=article.current_version_id, reviewer_name=payload.reviewer_name, decision="rejected", notes=payload.notes))
     db.commit()
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
 
 @router.post("/articles/{article_id}/publish")
-def publish_article(article_id: str, db: Session = Depends(get_db)) -> dict:
+def publish_article(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -345,13 +355,7 @@ def publish_article(article_id: str, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=400, detail="Quality report required before publishing")
     version = db.get(ArticleVersion, article.current_version_id)
     images = db.query(Image).filter(Image.article_id == article.id).all()
-    payload = {
-        "title": version.meta_title or article.title,
-        "slug": article.slug,
-        "excerpt": version.excerpt,
-        "status": "draft",
-        "image_count": len(images),
-    }
+    payload = {"title": version.meta_title or article.title, "slug": article.slug, "excerpt": version.excerpt, "status": "draft", "image_count": len(images)}
     job = PublishingJob(article_id=article.id, target_system="wordpress", status="running", request_payload=payload, response_payload={})
     db.add(job)
     db.commit()
@@ -367,7 +371,7 @@ def publish_article(article_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/articles/{article_id}/publishing-status", response_model=PublishingJobRead)
-def publishing_status(article_id: str, db: Session = Depends(get_db)) -> PublishingJob:
+def publishing_status(article_id: UUID, db: Session = Depends(get_db)) -> PublishingJob:
     job = db.query(PublishingJob).filter(PublishingJob.article_id == article_id).order_by(PublishingJob.created_at.desc()).first()
     if not job:
         raise HTTPException(status_code=404, detail="Publishing job not found")

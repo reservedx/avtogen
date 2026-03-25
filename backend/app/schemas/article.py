@@ -81,6 +81,16 @@ class ImageRead(ORMModel):
     created_at: datetime
 
 
+class EditorialReviewRead(ORMModel):
+    id: UUID
+    article_id: UUID
+    article_version_id: UUID
+    reviewer_name: str
+    decision: str
+    notes: str | None
+    created_at: datetime
+
+
 class TaskRunRead(ORMModel):
     id: UUID
     task_type: str
@@ -151,3 +161,13 @@ class PublishingJobRead(ORMModel):
     last_error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ArticleWorkspaceRead(BaseModel):
+    article: ArticleRead
+    current_version: ArticleVersionRead | None
+    versions: list[ArticleVersionRead]
+    images: list[ImageRead]
+    latest_quality_report: QualityReportRead | None
+    publishing_job: PublishingJobRead | None
+    editorial_reviews: list[EditorialReviewRead]

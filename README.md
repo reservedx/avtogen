@@ -112,6 +112,8 @@ Implemented in scaffold form:
 - `POST /api/v1/topics/{id}/generate-brief`
 - `GET /api/v1/topics/{id}/briefs`
 - `POST /api/v1/topics/{id}/generate-draft`
+- `GET /api/v1/articles`
+- `GET /api/v1/articles/{id}/workspace`
 - `POST /api/v1/articles/{id}/generate-images`
 - `POST /api/v1/articles/{id}/regenerate-section`
 - `GET /api/v1/articles/{id}`
