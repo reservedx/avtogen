@@ -28,19 +28,28 @@ type SettingsSummary = {
   runtime_override_keys: string[];
 };
 
+type AuthSession = {
+  role: string;
+  auth_enabled: boolean;
+  allowed_capabilities: string[];
+};
+
 function boolText(value: boolean): string {
   return value ? "Да" : "Нет";
 }
 
 export default async function SettingsPage() {
-  const settings = await fetchApiJson<SettingsSummary>("/settings");
+  const [settings, session] = await Promise.all([
+    fetchApiJson<SettingsSummary>("/settings"),
+    fetchApiJson<AuthSession>("/auth/session"),
+  ]);
 
   if (!settings) {
     return (
       <main className="page-shell">
         <section className="hero compact">
           <div className="hero-copy">
-            <p className="eyebrow">Runtime Settings</p>
+            <p className="eyebrow">Параметры платформы</p>
             <h1>Настройки недоступны</h1>
             <p className="hero-text">Backend не ответил на запрос настроек. Проверь API и попробуй снова.</p>
           </div>
@@ -53,10 +62,11 @@ export default async function SettingsPage() {
     <main className="page-shell">
       <section className="hero compact">
         <div className="hero-copy">
-          <p className="eyebrow">Runtime Settings</p>
+          <p className="eyebrow">Параметры платформы</p>
           <h1>Глобальные настройки</h1>
           <p className="hero-text">
-            Здесь можно менять ключевые параметры fast-publish режима, quality gate и базовые правила публикации без ручного редактирования `.env`.
+            Здесь можно менять ключевые параметры fast-publish режима, quality gate и базовые правила
+            публикации без ручного редактирования `.env`.
           </p>
         </div>
         <div className="hero-status">
@@ -78,11 +88,26 @@ export default async function SettingsPage() {
               </div>
             </div>
             <form className="action-form" action={saveRuntimeSettingsAction}>
-              <label className="toggle-row"><input defaultChecked={settings.auto_publish_enabled} name="auto_publish_enabled" type="checkbox" /> <span>Разрешить auto-publish</span></label>
-              <label className="toggle-row"><input defaultChecked={settings.fast_publish_enabled} name="fast_publish_enabled" type="checkbox" /> <span>Включить fast-publish mode</span></label>
-              <label className="toggle-row"><input defaultChecked={settings.auto_approve_low_risk} name="auto_approve_low_risk" type="checkbox" /> <span>Автоодобрение low-risk статей</span></label>
-              <label className="toggle-row"><input defaultChecked={settings.auto_publish_low_risk} name="auto_publish_low_risk" type="checkbox" /> <span>Автопубликация low-risk статей</span></label>
-              <label className="toggle-row"><input defaultChecked={settings.use_stub_generation} name="use_stub_generation" type="checkbox" /> <span>Stub generation вместо real OpenAI</span></label>
+              <label className="toggle-row">
+                <input defaultChecked={settings.auto_publish_enabled} name="auto_publish_enabled" type="checkbox" />
+                <span>Разрешить auto-publish</span>
+              </label>
+              <label className="toggle-row">
+                <input defaultChecked={settings.fast_publish_enabled} name="fast_publish_enabled" type="checkbox" />
+                <span>Включить fast-publish mode</span>
+              </label>
+              <label className="toggle-row">
+                <input defaultChecked={settings.auto_approve_low_risk} name="auto_approve_low_risk" type="checkbox" />
+                <span>Автоодобрение low-risk статей</span>
+              </label>
+              <label className="toggle-row">
+                <input defaultChecked={settings.auto_publish_low_risk} name="auto_publish_low_risk" type="checkbox" />
+                <span>Автопубликация low-risk статей</span>
+              </label>
+              <label className="toggle-row">
+                <input defaultChecked={settings.use_stub_generation} name="use_stub_generation" type="checkbox" />
+                <span>Stub generation вместо real OpenAI</span>
+              </label>
 
               <div className="settings-grid">
                 <label>
@@ -91,15 +116,30 @@ export default async function SettingsPage() {
                 </label>
                 <label>
                   <span>Max risk score</span>
-                  <input defaultValue={settings.max_risk_score_for_auto_publish} name="max_risk_score_for_auto_publish" step="1" type="number" />
+                  <input
+                    defaultValue={settings.max_risk_score_for_auto_publish}
+                    name="max_risk_score_for_auto_publish"
+                    step="1"
+                    type="number"
+                  />
                 </label>
                 <label>
                   <span>Fast lane min quality</span>
-                  <input defaultValue={settings.fast_lane_min_quality_score} name="fast_lane_min_quality_score" step="1" type="number" />
+                  <input
+                    defaultValue={settings.fast_lane_min_quality_score}
+                    name="fast_lane_min_quality_score"
+                    step="1"
+                    type="number"
+                  />
                 </label>
                 <label>
                   <span>Fast lane max risk</span>
-                  <input defaultValue={settings.fast_lane_max_risk_score} name="fast_lane_max_risk_score" step="1" type="number" />
+                  <input
+                    defaultValue={settings.fast_lane_max_risk_score}
+                    name="fast_lane_max_risk_score"
+                    step="1"
+                    type="number"
+                  />
                 </label>
                 <label>
                   <span>Required source count</span>
@@ -113,11 +153,7 @@ export default async function SettingsPage() {
 
               <label>
                 <span>Medical disclaimer</span>
-                <textarea
-                  defaultValue={settings.default_medical_disclaimer}
-                  name="default_medical_disclaimer"
-                  rows={4}
-                />
+                <textarea defaultValue={settings.default_medical_disclaimer} name="default_medical_disclaimer" rows={4} />
               </label>
 
               <button className="action-button accent-button" type="submit">
@@ -172,6 +208,31 @@ export default async function SettingsPage() {
               <div className="mini-chip">Auto-approve low risk: {boolText(settings.auto_approve_low_risk)}</div>
               <div className="mini-chip">Auto-publish low risk: {boolText(settings.auto_publish_low_risk)}</div>
               <div className="mini-chip">Stub mode: {boolText(settings.use_stub_generation)}</div>
+            </div>
+          </article>
+
+          <article className="panel">
+            <p className="panel-label">Доступ</p>
+            <h2>Текущая сессия</h2>
+            <div className="settings-list">
+              <div>
+                <dt>Auth enabled</dt>
+                <dd>{boolText(session?.auth_enabled ?? false)}</dd>
+              </div>
+              <div>
+                <dt>Role</dt>
+                <dd>{session?.role ?? "unknown"}</dd>
+              </div>
+            </div>
+            <div className="top-gap">
+              <p className="panel-label">Capabilities</p>
+              <div className="stack">
+                {(session?.allowed_capabilities ?? []).map((item) => (
+                  <div className="mini-chip" key={item}>
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
           </article>
         </div>

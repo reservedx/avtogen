@@ -270,6 +270,30 @@ The project now supports a faster publication lane for low-risk informational to
 - `AUTO_PUBLISH_LOW_RISK=true` can publish approved low-risk drafts automatically when CMS publishing is configured
 
 High-risk topics still stay out of the fast lane. Content about treatment, diagnosis, dosage, prescriptions, pregnancy risk, or stronger medical advice should continue to require manual review.
+
+## Internal Auth
+
+The admin platform now supports simple internal role-based access for operational use.
+
+- `AUTH_ENABLED=true` turns on API protection
+- every `/api/v1/*` request must send `x-auth-role` and `x-auth-token`
+- available roles:
+  - `admin`
+  - `editor`
+  - `operator`
+- `admin` can also change runtime settings
+- `editor` can review, approve, and publish
+- `operator` can run pipeline and operational actions but cannot approve or publish
+
+Frontend server actions can use these environment variables:
+
+- `API_AUTH_ROLE`
+- `API_AUTH_TOKEN`
+- `API_AUTH_ADMIN_TOKEN`
+- `API_AUTH_EDITOR_TOKEN`
+- `API_AUTH_OPERATOR_TOKEN`
+
+If you want to temporarily disable internal auth for local debugging, set `AUTH_ENABLED=false`.
 ## Tests
 
 ```bash

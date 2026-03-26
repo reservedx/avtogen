@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     wordpress_username: str = Field(default="editor", alias="WORDPRESS_USERNAME")
     wordpress_app_password: str = Field(default="changeme", alias="WORDPRESS_APP_PASSWORD")
     use_stub_generation: bool = Field(default=True, alias="USE_STUB_GENERATION")
+    auth_enabled: bool = Field(default=True, alias="AUTH_ENABLED")
+    auth_admin_token: str = Field(default="dev-admin-token", alias="AUTH_ADMIN_TOKEN")
+    auth_editor_token: str = Field(default="dev-editor-token", alias="AUTH_EDITOR_TOKEN")
+    auth_operator_token: str = Field(default="dev-operator-token", alias="AUTH_OPERATOR_TOKEN")
 
     @property
     def database_is_sqlite(self) -> bool:

@@ -9,11 +9,13 @@ from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
 from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ImageReviewQueueItemRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, RuntimeSettingsUpdate, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.auth import AuthSessionRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import BulkTopicCreateRequest, BulkTopicCreateResponse, BulkTopicCreateResult, CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkImageModerationRequest, BulkImageModerationResponse, BulkImageModerationResult, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
+from app.services.auth import ROLE_CAPABILITIES, get_current_role, require_role
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
 from app.services.runtime_settings import runtime_override_keys, runtime_settings_snapshot, save_runtime_overrides
 
@@ -263,7 +265,16 @@ def get_settings_summary(db: Session = Depends(get_db)) -> SettingsSummaryRead:
     )
 
 
-@router.post("/settings/runtime", response_model=SettingsSummaryRead)
+@router.get("/auth/session", response_model=AuthSessionRead)
+def get_auth_session(current_role: str = Depends(get_current_role)) -> AuthSessionRead:
+    return AuthSessionRead(
+        role=current_role,
+        auth_enabled=settings.auth_enabled,
+        allowed_capabilities=ROLE_CAPABILITIES.get(current_role, []),
+    )
+
+
+@router.post("/settings/runtime", response_model=SettingsSummaryRead, dependencies=[Depends(require_role("admin"))])
 def update_runtime_settings(payload: RuntimeSettingsUpdate, db: Session = Depends(get_db)) -> SettingsSummaryRead:
     save_runtime_overrides(db, payload.model_dump())
     runtime_snapshot = runtime_settings_snapshot()
@@ -349,7 +360,7 @@ def list_task_runs(db: Session = Depends(get_db)) -> list[TaskRun]:
     return db.query(TaskRun).order_by(TaskRun.started_at.desc()).limit(100).all()
 
 
-@router.post("/clusters", response_model=ClusterRead)
+@router.post("/clusters", response_model=ClusterRead, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def create_cluster(payload: ClusterCreate, db: Session = Depends(get_db)) -> Cluster:
     cluster = Cluster(**payload.model_dump())
     db.add(cluster)
@@ -363,7 +374,7 @@ def list_clusters(db: Session = Depends(get_db)) -> list[Cluster]:
     return db.query(Cluster).order_by(Cluster.created_at.desc()).all()
 
 
-@router.post("/keywords", response_model=KeywordRead)
+@router.post("/keywords", response_model=KeywordRead, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def create_keyword(payload: KeywordCreate, db: Session = Depends(get_db)) -> Keyword:
     cluster = db.get(Cluster, payload.cluster_id)
     if not cluster:
@@ -383,7 +394,7 @@ def list_keywords(cluster_id: UUID | None = None, db: Session = Depends(get_db))
     return query.order_by(Keyword.priority.desc(), Keyword.created_at.desc()).all()
 
 
-@router.post("/topics", response_model=TopicRead)
+@router.post("/topics", response_model=TopicRead, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def create_topic(payload: TopicCreate, db: Session = Depends(get_db)) -> ContentTopic:
     topic = ContentTopic(**payload.model_dump())
     topic.cannibalization_hash = InterlinkingService().cannibalization_hash(f"{topic.working_title} {topic.target_query}")
@@ -393,7 +404,7 @@ def create_topic(payload: TopicCreate, db: Session = Depends(get_db)) -> Content
     return topic
 
 
-@router.post("/topics/bulk-create", response_model=BulkTopicCreateResponse)
+@router.post("/topics/bulk-create", response_model=BulkTopicCreateResponse, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def bulk_create_topics(payload: BulkTopicCreateRequest, db: Session = Depends(get_db)) -> BulkTopicCreateResponse:
     cluster = db.get(Cluster, payload.cluster_id) if payload.cluster_id else None
     if payload.cluster_id and not cluster:
@@ -503,7 +514,7 @@ def check_topic_cannibalization(topic_id: UUID, db: Session = Depends(get_db)) -
     return CannibalizationReportRead(topic_id=topic.id, candidate_text=candidate_text, **report)
 
 
-@router.post("/topics/{topic_id}/collect-sources")
+@router.post("/topics/{topic_id}/collect-sources", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def collect_sources(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
@@ -537,7 +548,7 @@ def list_sources(topic_id: UUID, db: Session = Depends(get_db)) -> list[Source]:
     return db.query(Source).filter(Source.topic_id == topic_id).all()
 
 
-@router.post("/topics/{topic_id}/sources/manual", response_model=SourceRead)
+@router.post("/topics/{topic_id}/sources/manual", response_model=SourceRead, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def create_manual_source(topic_id: UUID, payload: ManualSourceCreate, db: Session = Depends(get_db)) -> Source:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
@@ -564,7 +575,7 @@ def create_manual_source(topic_id: UUID, payload: ManualSourceCreate, db: Sessio
     return source
 
 
-@router.post("/topics/{topic_id}/extract-research-notes", response_model=ResearchNoteExtractionResponse)
+@router.post("/topics/{topic_id}/extract-research-notes", response_model=ResearchNoteExtractionResponse, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def extract_research_notes(topic_id: UUID, db: Session = Depends(get_db)) -> ResearchNoteExtractionResponse:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
@@ -580,7 +591,7 @@ def list_research_notes(topic_id: UUID, db: Session = Depends(get_db)) -> list[R
     return db.query(ResearchNote).filter(ResearchNote.topic_id == topic_id).order_by(ResearchNote.created_at.asc()).all()
 
 
-@router.post("/topics/bulk-fast-lane", response_model=BulkTopicFastLaneResponse)
+@router.post("/topics/bulk-fast-lane", response_model=BulkTopicFastLaneResponse, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def bulk_fast_lane_topics(payload: BulkTopicFastLaneRequest, db: Session = Depends(get_db)) -> BulkTopicFastLaneResponse:
     topic_ids = [item.strip() for item in payload.topic_ids if item.strip()]
     if not topic_ids:
@@ -631,7 +642,7 @@ def bulk_fast_lane_topics(payload: BulkTopicFastLaneRequest, db: Session = Depen
     return BulkTopicFastLaneResponse(requested=len(topic_ids[:50]), completed=completed, results=results)
 
 
-@router.post("/topics/{topic_id}/generate-brief")
+@router.post("/topics/{topic_id}/generate-brief", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def generate_brief(topic_id: UUID, db: Session = Depends(get_db)) -> dict:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
@@ -658,7 +669,7 @@ def list_briefs(topic_id: UUID, db: Session = Depends(get_db)) -> list[Brief]:
     return db.query(Brief).filter(Brief.topic_id == topic_id).order_by(Brief.version.desc()).all()
 
 
-@router.post("/topics/{topic_id}/generate-draft", response_model=ArticleRead)
+@router.post("/topics/{topic_id}/generate-draft", response_model=ArticleRead, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
     topic = db.get(ContentTopic, topic_id)
     if not topic:
@@ -675,7 +686,7 @@ def generate_draft(topic_id: UUID, db: Session = Depends(get_db)) -> Article:
     return article
 
 
-@router.post("/articles/{article_id}/generate-images", response_model=list[ImageRead])
+@router.post("/articles/{article_id}/generate-images", response_model=list[ImageRead], dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def generate_images(article_id: UUID, db: Session = Depends(get_db)) -> list[Image]:
     article = db.get(Article, article_id)
     if not article:
@@ -687,7 +698,7 @@ def generate_images(article_id: UUID, db: Session = Depends(get_db)) -> list[Ima
     return rows
 
 
-@router.post("/images/{image_id}/approve", response_model=ImageRead)
+@router.post("/images/{image_id}/approve", response_model=ImageRead, dependencies=[Depends(require_role("admin", "editor"))])
 def approve_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
     image = db.get(Image, image_id)
     if not image:
@@ -699,7 +710,7 @@ def approve_image(image_id: UUID, payload: ImageModerationRequest, db: Session =
     return image
 
 
-@router.post("/images/{image_id}/reject", response_model=ImageRead)
+@router.post("/images/{image_id}/reject", response_model=ImageRead, dependencies=[Depends(require_role("admin", "editor"))])
 def reject_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
     image = db.get(Image, image_id)
     if not image:
@@ -711,7 +722,7 @@ def reject_image(image_id: UUID, payload: ImageModerationRequest, db: Session = 
     return image
 
 
-@router.post("/images/{image_id}/regenerate", response_model=ImageRead)
+@router.post("/images/{image_id}/regenerate", response_model=ImageRead, dependencies=[Depends(require_role("admin", "editor"))])
 def regenerate_image(image_id: UUID, payload: ImageModerationRequest, db: Session = Depends(get_db)) -> Image:
     image = db.get(Image, image_id)
     if not image:
@@ -723,7 +734,7 @@ def regenerate_image(image_id: UUID, payload: ImageModerationRequest, db: Sessio
     return image
 
 
-@router.post("/images/bulk-moderate", response_model=BulkImageModerationResponse)
+@router.post("/images/bulk-moderate", response_model=BulkImageModerationResponse, dependencies=[Depends(require_role("admin", "editor"))])
 def bulk_moderate_images(payload: BulkImageModerationRequest, db: Session = Depends(get_db)) -> BulkImageModerationResponse:
     supported_actions = {"approve", "reject", "regenerate"}
     if payload.action not in supported_actions:
@@ -762,7 +773,7 @@ def bulk_moderate_images(payload: BulkImageModerationRequest, db: Session = Depe
     return BulkImageModerationResponse(requested=len(image_ids[:50]), completed=completed, results=results)
 
 
-@router.post("/articles/{article_id}/regenerate-section")
+@router.post("/articles/{article_id}/regenerate-section", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
@@ -783,7 +794,7 @@ def regenerate_section(article_id: UUID, payload: RegenerateSectionRequest, db: 
     return {"article_id": str(article_id), "new_version": new_version.version}
 
 
-@router.post("/articles/{article_id}/save-manual-version")
+@router.post("/articles/{article_id}/save-manual-version", dependencies=[Depends(require_role("admin", "editor"))])
 def save_manual_version(article_id: UUID, payload: ManualArticleVersionCreate, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
@@ -908,7 +919,7 @@ def list_editorial_reviews(article_id: UUID, db: Session = Depends(get_db)) -> l
     return db.query(EditorialReview).filter(EditorialReview.article_id == article_id).order_by(EditorialReview.created_at.desc()).all()
 
 
-@router.post("/articles/{article_id}/run-quality-check")
+@router.post("/articles/{article_id}/run-quality-check", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
@@ -918,7 +929,7 @@ def run_quality_check(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     return report
 
 
-@router.post("/articles/bulk-action", response_model=BulkArticleActionResponse)
+@router.post("/articles/bulk-action", response_model=BulkArticleActionResponse, dependencies=[Depends(require_role("admin", "editor"))])
 def bulk_article_action(payload: BulkArticleActionRequest, db: Session = Depends(get_db)) -> BulkArticleActionResponse:
     supported_actions = {"run_quality_check", "submit_for_review", "approve", "publish", "generate_images"}
     if payload.action not in supported_actions:
@@ -999,7 +1010,7 @@ def get_quality_report(article_id: UUID, db: Session = Depends(get_db)) -> Quali
     return report
 
 
-@router.post("/articles/{article_id}/submit-for-review")
+@router.post("/articles/{article_id}/submit-for-review", dependencies=[Depends(require_role("admin", "editor"))])
 def submit_for_review(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
@@ -1009,7 +1020,7 @@ def submit_for_review(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     return {"status": article.status}
 
 
-@router.post("/articles/{article_id}/approve")
+@router.post("/articles/{article_id}/approve", dependencies=[Depends(require_role("admin", "editor"))])
 def approve_article(article_id: UUID, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
@@ -1020,7 +1031,7 @@ def approve_article(article_id: UUID, payload: ReviewDecisionRequest, db: Sessio
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
 
-@router.post("/articles/{article_id}/reject")
+@router.post("/articles/{article_id}/reject", dependencies=[Depends(require_role("admin", "editor"))])
 def reject_article(article_id: UUID, payload: ReviewDecisionRequest, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article:
@@ -1031,7 +1042,7 @@ def reject_article(article_id: UUID, payload: ReviewDecisionRequest, db: Session
     return {"status": article.status, "reviewer": payload.reviewer_name}
 
 
-@router.post("/articles/{article_id}/publish")
+@router.post("/articles/{article_id}/publish", dependencies=[Depends(require_role("admin", "editor"))])
 def publish_article(article_id: UUID, db: Session = Depends(get_db)) -> dict:
     article = db.get(Article, article_id)
     if not article or not article.current_version_id:
@@ -1068,12 +1079,12 @@ def publishing_status(article_id: UUID, db: Session = Depends(get_db)) -> Publis
     return job
 
 
-@router.post("/pipeline/run")
+@router.post("/pipeline/run", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> dict:
     return PipelineService().run_with_task_log(db, payload.topic_query, payload.audience)
 
 
-@router.post("/pipeline/run-bulk")
+@router.post("/pipeline/run-bulk", dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def run_pipeline_bulk(payload: BulkPipelineRunRequest, db: Session = Depends(get_db)) -> dict:
     topic_queries = [item.strip() for item in payload.topic_queries if item.strip()]
     if not topic_queries:
@@ -1083,7 +1094,7 @@ def run_pipeline_bulk(payload: BulkPipelineRunRequest, db: Session = Depends(get
     return PipelineService().run_bulk_with_task_log(db, topic_queries, payload.audience)
 
 
-@router.post("/demo/bootstrap", response_model=DemoBootstrapResponse)
+@router.post("/demo/bootstrap", response_model=DemoBootstrapResponse, dependencies=[Depends(require_role("admin", "editor", "operator"))])
 def bootstrap_demo(payload: DemoBootstrapRequest, db: Session = Depends(get_db)) -> DemoBootstrapResponse:
     cluster = Cluster(
         name=payload.cluster_name,
