@@ -11,7 +11,7 @@ export const metadata = {
 const navigationItems = [
   { href: "/", label: "Панель управления", hint: "Очереди, метрики и fast lane" },
   { href: "/#topic-import", label: "Темы и research", hint: "Импорт тем и сбор research" },
-  { href: "/#article-queue", label: "Статьи и ревью", hint: "Редактура, QA и публикация" },
+  { href: "/articles", label: "Статьи и ревью", hint: "Редактура, QA и публикация" },
   { href: "/images", label: "Модерация изображений", hint: "Ручная проверка перед CMS" },
 ];
 
