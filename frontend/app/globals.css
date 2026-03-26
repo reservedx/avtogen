@@ -540,7 +540,7 @@ textarea {
 
 .filter-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(220px, 0.8fr) 180px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }

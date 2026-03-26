@@ -14,6 +14,7 @@ const navigationItems = [
   { href: "/articles", label: "Статьи и ревью", hint: "Редактура, QA и публикация" },
   { href: "/images", label: "Модерация изображений", hint: "Ручная проверка перед CMS" },
   { href: "/analytics", label: "Аналитика", hint: "Сводка по pipeline и ошибкам" },
+  { href: "/jobs", label: "Задачи", hint: "Мониторинг task runs и статусов" },
   { href: "/settings", label: "Настройки", hint: "Глобальные runtime-параметры" },
 ];
 
