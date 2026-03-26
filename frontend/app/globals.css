@@ -538,6 +538,31 @@ textarea {
   min-height: 110px;
 }
 
+.filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(220px, 0.8fr) 180px;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  width: 100%;
+  border: 1px solid rgba(118, 194, 205, 0.18);
+  border-radius: 16px;
+  padding: 13px 14px;
+  background: rgba(5, 16, 27, 0.7);
+  color: var(--text);
+  outline: none;
+}
+
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .action-button {
   width: 100%;
   border: 1px solid rgba(88, 210, 195, 0.22);
@@ -704,6 +729,7 @@ textarea {
   .dashboard-grid,
   .spotlight-grid,
   .version-diff-grid,
+  .filter-bar,
   .action-grid,
   .action-columns {
     grid-template-columns: 1fr;

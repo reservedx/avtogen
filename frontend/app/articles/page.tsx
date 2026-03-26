@@ -56,6 +56,18 @@ function scoreLabel(value: number | null, kind: "quality" | "risk"): string {
   return `${kind === "quality" ? "Качество" : "Риск"}: ${value}/100`;
 }
 
+function applyFilters(articles: Article[], status: string, query: string): Article[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  return articles.filter((article) => {
+    const statusMatch = status === "all" || article.status === status;
+    const queryMatch =
+      !normalizedQuery ||
+      article.title.toLowerCase().includes(normalizedQuery) ||
+      article.slug.toLowerCase().includes(normalizedQuery);
+    return statusMatch && queryMatch;
+  });
+}
+
 const buckets: ArticleBucket[] = [
   {
     title: "Черновики",
@@ -65,7 +77,7 @@ const buckets: ArticleBucket[] = [
   {
     title: "На ревью",
     statuses: ["in_review"],
-    description: "Материалы, которые редактор должен быстро проверить перед апрувом.",
+    description: "Материалы, которые редактор должен проверить перед одобрением.",
   },
   {
     title: "Готовы к публикации",
@@ -79,13 +91,23 @@ const buckets: ArticleBucket[] = [
   },
 ];
 
-export default async function ArticleQueuePage() {
+export default async function ArticleQueuePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = (await searchParams) ?? {};
+  const currentStatus = typeof params.status === "string" ? params.status : "all";
+  const currentQuery = typeof params.q === "string" ? params.q : "";
+
   const articles = (await fetchApiJson<Article[]>("/articles")) ?? [];
-  const reviewQueueIds = articles
+  const filteredArticles = applyFilters(articles, currentStatus, currentQuery);
+
+  const reviewQueueIds = filteredArticles
     .filter((article) => article.status !== "published")
     .slice(0, 20)
     .map((article) => article.id);
-  const approvedIds = articles.filter((article) => article.status === "approved").map((article) => article.id);
+  const approvedIds = filteredArticles.filter((article) => article.status === "approved").map((article) => article.id);
 
   return (
     <main className="page-shell">
@@ -94,15 +116,15 @@ export default async function ArticleQueuePage() {
           <p className="eyebrow">Article Queue</p>
           <h1>Очередь статей</h1>
           <p className="hero-text">
-            Отдельный экран для работы со статусами статей. Здесь проще запускать QA, отправлять материалы на ревью,
-            одобрять и публиковать без постоянного возврата на общий dashboard.
+            Отдельный экран для управления статусами статей. Здесь можно быстро запускать QA, отправлять материалы на ревью,
+            одобрять и публиковать их без постоянного возврата на общий дашборд.
           </p>
         </div>
         <div className="hero-status">
           <div className="badge success">Editorial workflow</div>
           <div className="status-stack">
-            <span>Всего статей</span>
-            <strong>{articles.length}</strong>
+            <span>Найдено по фильтру</span>
+            <strong>{filteredArticles.length}</strong>
           </div>
         </div>
       </section>
@@ -110,19 +132,19 @@ export default async function ArticleQueuePage() {
       <section className="metrics-grid">
         <article className="metric-card accent">
           <span>Черновики и доработка</span>
-          <strong>{articles.filter((item) => ["draft", "needs_revision"].includes(item.status)).length}</strong>
+          <strong>{filteredArticles.filter((item) => ["draft", "needs_revision"].includes(item.status)).length}</strong>
         </article>
         <article className="metric-card">
           <span>На ревью</span>
-          <strong>{articles.filter((item) => item.status === "in_review").length}</strong>
+          <strong>{filteredArticles.filter((item) => item.status === "in_review").length}</strong>
         </article>
         <article className="metric-card">
           <span>Одобрено</span>
-          <strong>{approvedIds.length}</strong>
+          <strong>{filteredArticles.filter((item) => item.status === "approved").length}</strong>
         </article>
         <article className="metric-card">
           <span>Опубликовано</span>
-          <strong>{articles.filter((item) => item.status === "published").length}</strong>
+          <strong>{filteredArticles.filter((item) => item.status === "published").length}</strong>
         </article>
       </section>
 
@@ -131,19 +153,49 @@ export default async function ArticleQueuePage() {
           <article className="panel">
             <div className="panel-head">
               <div>
+                <p className="panel-label">Глобальные фильтры</p>
+                <h2>Поиск по очереди статей</h2>
+              </div>
+            </div>
+            <form className="filter-bar" action="/articles" method="get">
+              <input defaultValue={currentQuery} name="q" placeholder="Поиск по заголовку или slug" />
+              <select defaultValue={currentStatus} name="status">
+                <option value="all">Все статусы</option>
+                <option value="draft">Черновик</option>
+                <option value="needs_revision">Нужна доработка</option>
+                <option value="in_review">На ревью</option>
+                <option value="approved">Одобрено</option>
+                <option value="published">Опубликовано</option>
+              </select>
+              <button className="action-button" type="submit">
+                Применить
+              </button>
+            </form>
+            <div className="filter-pills">
+              <Link className="mini-chip" href="/articles">
+                Сбросить фильтры
+              </Link>
+              <div className="mini-chip">Статус: {currentStatus === "all" ? "все" : statusLabel(currentStatus)}</div>
+              <div className="mini-chip">Запрос: {currentQuery || "без поиска"}</div>
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <div>
                 <p className="panel-label">Пакетные действия</p>
-                <h2>Быстрые операции по очереди</h2>
+                <h2>Быстрые операции по отфильтрованной очереди</h2>
               </div>
             </div>
             <div className="action-columns">
               <form action={runBulkQualityCheckAction.bind(null, reviewQueueIds)}>
                 <button className="action-button" type="submit">
-                  Запустить QA по видимой очереди
+                  Запустить QA
                 </button>
               </form>
               <form action={bulkSubmitForReviewAction.bind(null, reviewQueueIds)}>
                 <button className="action-button" type="submit">
-                  Отправить видимую очередь на ревью
+                  Отправить на ревью
                 </button>
               </form>
             </div>
@@ -155,7 +207,7 @@ export default async function ArticleQueuePage() {
               </form>
               <form action={bulkApproveAction.bind(null, reviewQueueIds)}>
                 <button className="action-button" type="submit">
-                  Одобрить видимую очередь
+                  Одобрить статьи
                 </button>
               </form>
             </div>
@@ -169,7 +221,7 @@ export default async function ArticleQueuePage() {
           </article>
 
           {buckets.map((bucket) => {
-            const rows = articles.filter((article) => bucket.statuses.includes(article.status));
+            const rows = filteredArticles.filter((article) => bucket.statuses.includes(article.status));
             return (
               <article className="panel" key={bucket.title}>
                 <div className="panel-head">
@@ -199,7 +251,7 @@ export default async function ArticleQueuePage() {
                       </article>
                     ))
                   ) : (
-                    <p className="muted">В этом сегменте пока нет статей.</p>
+                    <p className="muted">В этом сегменте нет статей для текущего фильтра.</p>
                   )}
                 </div>
               </article>
@@ -212,8 +264,8 @@ export default async function ArticleQueuePage() {
             <p className="panel-label">Порядок работы</p>
             <h2>Как использовать очередь</h2>
             <div className="stack">
-              <div className="mini-chip">Сначала прогоняй QA по новым или изменённым черновикам.</div>
-              <div className="mini-chip">Потом отправляй статьи на ревью и одобряй только готовые версии.</div>
+              <div className="mini-chip">Сначала прогони QA по новым или изменённым черновикам.</div>
+              <div className="mini-chip">Потом отправь материалы на ревью и одобряй только готовые версии.</div>
               <div className="mini-chip">Публикация сработает только если у статьи уже одобрены изображения.</div>
             </div>
           </article>

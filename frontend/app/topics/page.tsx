@@ -33,12 +33,30 @@ function statusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
-export default async function TopicsPage() {
+function applyFilters(topics: Topic[], status: string, query: string): Topic[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  return topics.filter((topic) => {
+    const statusMatch = status === "all" || topic.status === status;
+    const queryMatch =
+      !normalizedQuery ||
+      topic.working_title.toLowerCase().includes(normalizedQuery) ||
+      topic.target_query.toLowerCase().includes(normalizedQuery);
+    return statusMatch && queryMatch;
+  });
+}
+
+export default async function TopicsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = (await searchParams) ?? {};
+  const currentStatus = typeof params.status === "string" ? params.status : "all";
+  const currentQuery = typeof params.q === "string" ? params.q : "";
+
   const topics = (await fetchApiJson<Topic[]>("/topics")) ?? [];
-  const topicQueueIds = topics.filter((topic) => topic.status !== "published").slice(0, 40).map((topic) => topic.id);
-  const plannedCount = topics.filter((topic) => topic.status === "planned").length;
-  const activeCount = topics.filter((topic) => ["draft", "in_review", "approved", "needs_revision"].includes(topic.status)).length;
-  const publishedCount = topics.filter((topic) => topic.status === "published").length;
+  const filteredTopics = applyFilters(topics, currentStatus, currentQuery);
+  const topicQueueIds = filteredTopics.filter((topic) => topic.status !== "published").slice(0, 40).map((topic) => topic.id);
 
   return (
     <main className="page-shell">
@@ -54,8 +72,8 @@ export default async function TopicsPage() {
         <div className="hero-status">
           <div className="badge success">Cluster workflow</div>
           <div className="status-stack">
-            <span>Всего тем</span>
-            <strong>{topics.length}</strong>
+            <span>Найдено по фильтру</span>
+            <strong>{filteredTopics.length}</strong>
           </div>
         </div>
       </section>
@@ -63,15 +81,15 @@ export default async function TopicsPage() {
       <section className="metrics-grid">
         <article className="metric-card accent">
           <span>Запланировано</span>
-          <strong>{plannedCount}</strong>
+          <strong>{filteredTopics.filter((topic) => topic.status === "planned").length}</strong>
         </article>
         <article className="metric-card">
           <span>В работе</span>
-          <strong>{activeCount}</strong>
+          <strong>{filteredTopics.filter((topic) => ["draft", "in_review", "approved", "needs_revision"].includes(topic.status)).length}</strong>
         </article>
         <article className="metric-card">
           <span>Опубликовано</span>
-          <strong>{publishedCount}</strong>
+          <strong>{filteredTopics.filter((topic) => topic.status === "published").length}</strong>
         </article>
         <article className="metric-card">
           <span>Готово для fast lane</span>
@@ -81,6 +99,37 @@ export default async function TopicsPage() {
 
       <section className="dashboard-grid">
         <div className="column-main">
+          <article className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="panel-label">Глобальные фильтры</p>
+                <h2>Поиск по темам</h2>
+              </div>
+            </div>
+            <form className="filter-bar" action="/topics" method="get">
+              <input defaultValue={currentQuery} name="q" placeholder="Поиск по теме или запросу" />
+              <select defaultValue={currentStatus} name="status">
+                <option value="all">Все статусы</option>
+                <option value="planned">Запланировано</option>
+                <option value="draft">Черновик</option>
+                <option value="in_review">На ревью</option>
+                <option value="approved">Одобрено</option>
+                <option value="needs_revision">Нужна доработка</option>
+                <option value="published">Опубликовано</option>
+              </select>
+              <button className="action-button" type="submit">
+                Применить
+              </button>
+            </form>
+            <div className="filter-pills">
+              <Link className="mini-chip" href="/topics">
+                Сбросить фильтры
+              </Link>
+              <div className="mini-chip">Статус: {currentStatus === "all" ? "все" : statusLabel(currentStatus)}</div>
+              <div className="mini-chip">Запрос: {currentQuery || "без поиска"}</div>
+            </div>
+          </article>
+
           <article className="panel">
             <div className="panel-head">
               <div>
@@ -103,7 +152,7 @@ export default async function TopicsPage() {
             <div className="top-gap">
               <form action={runBulkFastLaneTopicsAction.bind(null, topicQueueIds)}>
                 <button className="action-button accent-button" type="submit">
-                  Запустить fast lane по видимой очереди
+                  Запустить fast lane по отфильтрованной очереди
                 </button>
               </form>
             </div>
@@ -117,8 +166,8 @@ export default async function TopicsPage() {
               </div>
             </div>
             <div className="stack">
-              {topics.length ? (
-                topics.map((topic) => (
+              {filteredTopics.length ? (
+                filteredTopics.map((topic) => (
                   <article className="queue-item" key={topic.id}>
                     <div className="queue-header">
                       <strong>
@@ -131,7 +180,7 @@ export default async function TopicsPage() {
                   </article>
                 ))
               ) : (
-                <p className="muted">Темы пока не загружены. Начни с импорта списка выше.</p>
+                <p className="muted">По текущему фильтру темы не найдены.</p>
               )}
             </div>
           </article>
