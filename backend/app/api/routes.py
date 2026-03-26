@@ -8,13 +8,14 @@ from app.application.pipeline_service import PipelineService
 from app.config import settings
 from app.db.models import Article, ArticleVersion, Brief, Cluster, ContentTopic, EditorialReview, Image, Keyword, PublishingJob, QualityReport, ResearchNote, Source, TaskRun
 from app.db.session import get_db
-from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ImageReviewQueueItemRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, SettingsSummaryRead, SourceRead, TaskRunRead
+from app.schemas.article import AnalyticsSummaryRead, ArticleRead, ArticleVersionRead, ArticleWorkspaceRead, BriefRead, EditorialReviewRead, ImageModerationRequest, ImageRead, ImageReviewQueueItemRead, ManualArticleVersionCreate, MetricsRead, PublishingJobRead, QualityReportRead, RegenerateSectionRequest, RuntimeSettingsUpdate, SettingsSummaryRead, SourceRead, TaskRunRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
 from app.schemas.topic import BulkTopicCreateRequest, BulkTopicCreateResponse, BulkTopicCreateResult, CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkImageModerationRequest, BulkImageModerationResponse, BulkImageModerationResult, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.platform import ArticleSectionRegenerator, BriefGenerator, DraftGenerator, ImageGenerator, InterlinkingService, LaunchReadinessService, ManualSourceProvider, OpenAIGateway, PublishingService, QualityGateService, ResearchNoteExtractor, ResearchPackBuilder, RiskTierService, YouTubeTranscriptProvider
+from app.services.runtime_settings import runtime_override_keys, runtime_settings_snapshot, save_runtime_overrides
 
 router = APIRouter()
 
@@ -231,7 +232,8 @@ def _regenerate_image_asset(image: Image, db: Session) -> None:
 
 
 @router.get("/settings", response_model=SettingsSummaryRead)
-def get_settings_summary() -> SettingsSummaryRead:
+def get_settings_summary(db: Session = Depends(get_db)) -> SettingsSummaryRead:
+    runtime_snapshot = runtime_settings_snapshot()
     return SettingsSummaryRead(
         app_name=settings.app_name,
         app_env=settings.app_env,
@@ -256,6 +258,41 @@ def get_settings_summary() -> SettingsSummaryRead:
         fast_lane_max_risk_score=settings.fast_lane_max_risk_score,
         required_source_count=settings.required_source_count,
         similarity_threshold=settings.similarity_threshold,
+        default_medical_disclaimer=settings.default_medical_disclaimer,
+        runtime_override_keys=runtime_override_keys(db),
+    )
+
+
+@router.post("/settings/runtime", response_model=SettingsSummaryRead)
+def update_runtime_settings(payload: RuntimeSettingsUpdate, db: Session = Depends(get_db)) -> SettingsSummaryRead:
+    save_runtime_overrides(db, payload.model_dump())
+    runtime_snapshot = runtime_settings_snapshot()
+    return SettingsSummaryRead(
+        app_name=settings.app_name,
+        app_env=settings.app_env,
+        api_prefix=settings.api_prefix,
+        database_url=settings.database_url,
+        database_is_sqlite=settings.database_is_sqlite,
+        asset_storage_backend=settings.asset_storage_backend,
+        asset_storage_dir=settings.asset_storage_dir,
+        s3_bucket=settings.s3_bucket,
+        openai_enabled=settings.openai_enabled,
+        auto_publish_enabled=settings.auto_publish_enabled,
+        fast_publish_enabled=settings.fast_publish_enabled,
+        auto_approve_low_risk=settings.auto_approve_low_risk,
+        auto_publish_low_risk=settings.auto_publish_low_risk,
+        use_stub_generation=settings.use_stub_generation,
+        openai_brief_model=settings.openai_brief_model,
+        openai_draft_model=settings.openai_draft_model,
+        openai_image_model=settings.openai_image_model,
+        min_quality_score=settings.min_quality_score,
+        max_risk_score_for_auto_publish=settings.max_risk_score_for_auto_publish,
+        fast_lane_min_quality_score=settings.fast_lane_min_quality_score,
+        fast_lane_max_risk_score=settings.fast_lane_max_risk_score,
+        required_source_count=settings.required_source_count,
+        similarity_threshold=settings.similarity_threshold,
+        default_medical_disclaimer=settings.default_medical_disclaimer,
+        runtime_override_keys=runtime_override_keys(db),
     )
 
 

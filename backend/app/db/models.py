@@ -205,3 +205,10 @@ class TaskRun(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text(), nullable=True)
+
+
+class RuntimeConfig(Base):
+    __tablename__ = "runtime_config"
+    key: Mapped[str] = mapped_column(String(50), primary_key=True, default="default")
+    settings_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

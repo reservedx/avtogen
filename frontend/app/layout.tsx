@@ -13,6 +13,7 @@ const navigationItems = [
   { href: "/topics", label: "Темы и research", hint: "Импорт тем и сбор research" },
   { href: "/articles", label: "Статьи и ревью", hint: "Редактура, QA и публикация" },
   { href: "/images", label: "Модерация изображений", hint: "Ручная проверка перед CMS" },
+  { href: "/settings", label: "Настройки", hint: "Глобальные runtime-параметры" },
 ];
 
 export default function RootLayout({ children }: { children: ReactNode }) {

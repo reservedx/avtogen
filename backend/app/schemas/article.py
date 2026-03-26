@@ -166,6 +166,23 @@ class SettingsSummaryRead(BaseModel):
     fast_lane_max_risk_score: float
     required_source_count: int
     similarity_threshold: float
+    default_medical_disclaimer: str
+    runtime_override_keys: list[str] = []
+
+
+class RuntimeSettingsUpdate(BaseModel):
+    auto_publish_enabled: bool
+    fast_publish_enabled: bool
+    auto_approve_low_risk: bool
+    auto_publish_low_risk: bool
+    use_stub_generation: bool
+    min_quality_score: float
+    max_risk_score_for_auto_publish: float
+    fast_lane_min_quality_score: float
+    fast_lane_max_risk_score: float
+    required_source_count: int
+    similarity_threshold: float
+    default_medical_disclaimer: str
 
 
 class RegenerateSectionRequest(BaseModel):

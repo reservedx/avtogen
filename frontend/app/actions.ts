@@ -110,3 +110,26 @@ export async function bulkCreateTopicsAction(formData: FormData): Promise<void> 
   });
   revalidatePath("/");
 }
+
+function checkboxValue(formData: FormData, key: string): boolean {
+  return String(formData.get(key) || "") === "on";
+}
+
+export async function saveRuntimeSettingsAction(formData: FormData): Promise<void> {
+  await postApiJson("/settings/runtime", {
+    auto_publish_enabled: checkboxValue(formData, "auto_publish_enabled"),
+    fast_publish_enabled: checkboxValue(formData, "fast_publish_enabled"),
+    auto_approve_low_risk: checkboxValue(formData, "auto_approve_low_risk"),
+    auto_publish_low_risk: checkboxValue(formData, "auto_publish_low_risk"),
+    use_stub_generation: checkboxValue(formData, "use_stub_generation"),
+    min_quality_score: Number(formData.get("min_quality_score") || 78),
+    max_risk_score_for_auto_publish: Number(formData.get("max_risk_score_for_auto_publish") || 20),
+    fast_lane_min_quality_score: Number(formData.get("fast_lane_min_quality_score") || 68),
+    fast_lane_max_risk_score: Number(formData.get("fast_lane_max_risk_score") || 12),
+    required_source_count: Number(formData.get("required_source_count") || 2),
+    similarity_threshold: Number(formData.get("similarity_threshold") || 0.86),
+    default_medical_disclaimer: String(formData.get("default_medical_disclaimer") || "").trim(),
+  });
+  revalidatePath("/");
+  revalidatePath("/settings");
+}

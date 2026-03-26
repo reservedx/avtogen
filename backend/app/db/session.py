@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import settings
 from app.db.base import Base
 from app.db import models  # noqa: F401
+from app.services.runtime_settings import load_runtime_overrides
 
 engine_kwargs = {"future": True, "pool_pre_ping": True}
 if settings.database_is_sqlite:
@@ -38,6 +39,8 @@ def _ensure_sqlite_compat_columns() -> None:
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_compat_columns()
+    with SessionLocal() as db:
+        load_runtime_overrides(db)
 
 
 def get_db() -> Generator[Session, None, None]:
