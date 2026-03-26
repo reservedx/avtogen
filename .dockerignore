@@ -1,0 +1,16 @@
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.next
+node_modules
+frontend/node_modules
+frontend/.next
+tools
+data
+lt.err.log
+lt.out.log
+.env
+__pycache__
+*.pyc

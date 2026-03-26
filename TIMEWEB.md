@@ -31,11 +31,12 @@ WordPress should remain the publishing target, not the place where the platform 
 ## Minimal deployment order
 
 1. Create a Managed PostgreSQL instance.
-2. Create a backend app from the repository.
-3. Set backend environment variables.
-4. Create a frontend app from the repository.
-5. Point the frontend to the backend base URL.
+2. Create a backend app from the repository using `infra/backend.prod.Dockerfile`.
+3. Set backend environment variables from `infra/timeweb.backend.env.example`.
+4. Create a frontend app from the repository using `infra/frontend.prod.Dockerfile`.
+5. Point the frontend to the backend base URL with `API_BASE_URL`.
 6. Add WordPress credentials only when live publishing is needed.
+7. Keep OpenAI in stub mode until you intentionally switch to live generation.
 
 ## Backend environment variables
 
@@ -47,7 +48,7 @@ DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DBNAME
 USE_STUB_GENERATION=true
 AUTO_PUBLISH_ENABLED=false
 DEFAULT_MEDICAL_DISCLAIMER=Важно: Информация в статье не заменяет консультацию специалиста. Обратитесь к врачу при любых тревожных симптомах.
-ASSET_STORAGE_BACKEND=local
+ASSET_STORAGE_BACKEND=s3
 ```
 
 Optional later:
@@ -64,12 +65,18 @@ S3_SECRET_KEY=
 S3_BUCKET=
 S3_REGION=
 S3_PUBLIC_BASE_URL=
+AUTH_ENABLED=true
+AUTH_ADMIN_TOKEN=
+AUTH_EDITOR_TOKEN=
+AUTH_OPERATOR_TOKEN=
 ```
 
 ## Frontend environment variables
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=https://your-backend-domain.example.com/api/v1
+API_BASE_URL=https://your-backend-domain.example.com/api/v1
+API_AUTH_ROLE=admin
+API_AUTH_TOKEN=your-admin-token
 ```
 
 ## Publishing model
@@ -81,6 +88,9 @@ NEXT_PUBLIC_API_BASE_URL=https://your-backend-domain.example.com/api/v1
 
 ## Notes
 
+- backend has public endpoints `/health`, `/ready`, and `/version`
+- `infra/backend-entrypoint.sh` runs `alembic upgrade head` before starting uvicorn
+- use `infra/timeweb.backend.env.example` and `infra/timeweb.frontend.env.example` as templates
 - keep `USE_STUB_GENERATION=true` until you are ready to spend OpenAI credits
 - keep `AUTO_PUBLISH_ENABLED=false` for health content until the review workflow is fully approved
 - switch media storage to S3-compatible storage later if local assets become limiting

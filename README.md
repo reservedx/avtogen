@@ -304,6 +304,20 @@ poetry run pytest
 
 For a production-friendly Timeweb setup, use separate frontend, backend, and PostgreSQL services, with WordPress kept as the publishing target. See [TIMEWEB.md](TIMEWEB.md).
 
+Production-oriented deploy assets included in the repo:
+
+- `infra/backend.prod.Dockerfile`
+- `infra/frontend.prod.Dockerfile`
+- `infra/backend-entrypoint.sh`
+- `infra/timeweb.backend.env.example`
+- `infra/timeweb.frontend.env.example`
+
+The backend now also exposes public runtime checks:
+
+- `/health`
+- `/ready`
+- `/version`
+
 ## Roadmap
 
 1. Persist generated image assets to S3-compatible storage and expose signed/public URLs instead of local file paths.
