@@ -15,6 +15,7 @@ const navigationItems = [
   { href: "/images", label: "Модерация изображений", hint: "Ручная проверка перед CMS" },
   { href: "/analytics", label: "Аналитика", hint: "Сводка по pipeline и ошибкам" },
   { href: "/jobs", label: "Задачи", hint: "Мониторинг task runs и статусов" },
+  { href: "/system", label: "Система", hint: "Readiness, роли и глобальное состояние" },
   { href: "/settings", label: "Настройки", hint: "Глобальные runtime-параметры" },
 ];
 

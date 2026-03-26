@@ -13,6 +13,7 @@ from app.schemas.auth import AuthSessionRead
 from app.schemas.cluster import ClusterCreate, ClusterRead
 from app.schemas.keyword import KeywordCreate, KeywordRead
 from app.schemas.research import LaunchReadinessRead, ManualSourceCreate, ResearchNoteExtractionResponse, ResearchNoteRead
+from app.schemas.system import SystemOverviewRead
 from app.schemas.topic import BulkTopicCreateRequest, BulkTopicCreateResponse, BulkTopicCreateResult, CannibalizationReportRead, TopicCreate, TopicRead, TopicWorkspaceRead
 from app.schemas.workflow import BulkActionResult, BulkArticleActionRequest, BulkArticleActionResponse, BulkImageModerationRequest, BulkImageModerationResponse, BulkImageModerationResult, BulkPipelineRunRequest, BulkTopicActionResult, BulkTopicFastLaneRequest, BulkTopicFastLaneResponse, DemoBootstrapRequest, DemoBootstrapResponse, PipelineRunRequest, ReviewDecisionRequest
 from app.services.auth import ROLE_CAPABILITIES, get_current_role, require_role
@@ -327,6 +328,37 @@ def get_launch_readiness(db: Session = Depends(get_db)) -> LaunchReadinessRead:
             articles_count=db.query(Article).count(),
             published_articles_count=db.query(Article).filter(Article.status == "published").count(),
         )
+    )
+
+
+@router.get("/system/overview", response_model=SystemOverviewRead)
+def get_system_overview(db: Session = Depends(get_db), current_role: str = Depends(get_current_role)) -> SystemOverviewRead:
+    readiness = LaunchReadinessRead(
+        **LaunchReadinessService().evaluate(
+            topics_count=db.query(ContentTopic).count(),
+            articles_count=db.query(Article).count(),
+            published_articles_count=db.query(Article).filter(Article.status == "published").count(),
+        )
+    )
+    metrics = MetricsRead(
+        clusters_count=db.query(Cluster).count(),
+        topics_count=db.query(ContentTopic).count(),
+        articles_count=db.query(Article).count(),
+        published_articles_count=db.query(Article).filter(Article.status == "published").count(),
+        quality_reports_count=db.query(QualityReport).count(),
+        task_runs_count=db.query(TaskRun).count(),
+    )
+    settings_summary = get_settings_summary(db)
+    session = AuthSessionRead(
+        role=current_role,
+        auth_enabled=settings.auth_enabled,
+        allowed_capabilities=ROLE_CAPABILITIES.get(current_role, []),
+    )
+    return SystemOverviewRead(
+        settings=settings_summary,
+        metrics=metrics,
+        readiness=readiness,
+        session=session,
     )
 
 
